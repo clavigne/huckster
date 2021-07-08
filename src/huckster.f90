@@ -22,7 +22,8 @@ program huckster
 
   integer, parameter :: calc_huckel=1, calc_promolecule=2
   integer :: calc_type
-  logical :: do_crit, do_graph
+  logical :: do_crit, do_graph, do_cube
+  logical :: do_core_electrons
 
   ! Integrals
   type(ElectronicSystem) :: electrons
@@ -44,6 +45,8 @@ program huckster
   ! wfn output
   integer,parameter :: iwfn = 10
   integer,parameter :: icrit = 11
+  integer,parameter :: ielectrons = 20
+  integer,parameter :: iatoms = 21
 
   ! CP output
   type(CritPoint), allocatable :: CPs(:)
@@ -51,12 +54,18 @@ program huckster
   integer, allocatable :: adjacency(:,:)
   integer :: ifile
 
+  ! Cube
+  integer :: npts(3), cuben
+  double precision :: origin(3), displ(3,3), cubed
+
   ! Load command line arguments
   charge = 0
   i = 1
   calc_type = calc_huckel
   do_crit = .false.
   do_graph = .false.
+  do_cube = .false.
+  do_core_electrons = .true.
   verbosity = 0
   do while (i .le. command_argument_count())
      call get_command_argument(i, arg)
@@ -85,6 +94,13 @@ program huckster
      case ('-g', '--graph')
         do_crit = .true.        ! we need CPs for the graph
         do_graph = .true.
+
+     case ('-3', '--cube') 
+        do_cube = .true.
+        ! todo: cube parameters
+
+     case ('--valence') 
+        do_core_electrons=.false.
 
      case ('-t', '--type')
         call get_command_argument(i+1,arg)
@@ -169,9 +185,9 @@ program huckster
   call integrals_build_basis(electrons)
   call log_program_step_end
 
-
   call log_program_step('Loading AO coeffs and energies')
   call integrals_build_atomic_orbitals(electrons)
+
   naos = electrons%naos
   call log_program_step_end
 
@@ -206,8 +222,6 @@ program huckster
      call log_program_substep('projecting to the primitive basis')
      call integrals_MO_AO_transform(electrons, MO_AO, MO)
 
-     call log_program_substep('projecting to the primitive basis')
-     call integrals_MO_AO_transform(electrons, MO_AO, MO)
      call log_program_step_end
 
      if (verbosity > 0) then 
@@ -223,7 +237,9 @@ program huckster
      hl_index = 1
      do ii=1,naos
         if (remaining_electrons > 0) then
-           occ(ii) = dble(min(2, remaining_electrons))
+           if ((remaining_electrons.le.electrons%nvalence).or.do_core_electrons) then
+              occ(ii) = dble(min(2, remaining_electrons))
+           end if
            remaining_electrons = remaining_electrons - min(2, remaining_electrons)
            if (remaining_electrons .eq. 0) then
               hl_index = 2
@@ -260,6 +276,10 @@ program huckster
         call log_err('huckster', 'promolecule density is not compatible with charged species.')
         error stop 1
      end if
+     if (.not.do_core_electrons) then
+        call log_err('huckster', 'promolecule density is not compatible valence-only calc.')
+        error stop 1
+     end if
      occ = electrons%pop_ao
      MO = electrons%C_AO
      allocate(E_MO(naos))
@@ -285,6 +305,39 @@ program huckster
   close(iwfn)
 
   call log_program_step_end
+
+  if (do_cube) then
+     call log_program_step('Building electron density cube')
+
+     ! initialize density evaluator
+     call density_initialize(umos, occ)
+
+     call log_program_substep('computing grid parameters')
+     ! todo adjustable
+     cubed = 0.25d0
+     cuben = 32
+     call density_cube_parametrize(cubed, cuben, origin, displ, npts)
+
+     call log_program_substep('opening file: ' // output_name // '.electrons')
+     open(unit=ielectrons, file= output_name // '.electrons', access="stream")
+     call density_write_cube( &
+             ielectrons,&
+             origin,&
+             displ,&
+             npts)
+     close(ielectrons)
+
+     call log_program_substep('opening file: ' // output_name // '.atoms')
+     open(unit=iatoms, file= output_name // '.atoms', access="stream")
+     call density_write_atoms( &
+             iatoms,&
+             origin,&
+             displ,&
+             npts)
+     close(iatoms)
+
+     call log_program_step_end
+  end if 
 
   if (do_crit) then
      call log_program_step('Finding critical points')
@@ -358,6 +411,7 @@ contains
     write(*,*) 'Command-line options'
     write(*,*) '   -c, --charge CHRG          Set the global charge of the computed molecule.'
     write(*,*) '   -t, --type TYPE            Define computation type (TYPE = {eht, pro}.)'
+    write(*,*) '   --valence                  Exclude core electrons from density.'
     write(*,*) '   -a, --aim                  Do a QTAIM search for critical points.'
     write(*,*) '   -g, --graph                Build molecular graph from QTAIM analysis.'
     write(*,*) ''
@@ -366,6 +420,8 @@ contains
     write(*,*) '   -v, --verbose              Print more information.'
     write(*,*) '   -vv, --very-verbose        Print more information.'
     write(*,*) '   -q, --quiet                Silence output'
+
+    ! todo: cube help
 
   end subroutine print_help
 

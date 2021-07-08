@@ -4,6 +4,11 @@ module density
   ! we will only include basis for which exp(-alpha R^2) > this cutoff
   double precision, parameter :: INTEGRAL_CUTOFF = 1d-6
 
+  ! Atomic positions and numbers
+  integer :: n_atoms
+  double precision, allocatable :: atom_pos(:,:)
+  integer, allocatable :: atom_Z(:)
+
   ! center positions for each orbitals
   double precision, allocatable :: x(:), y(:), z(:)
 
@@ -35,6 +40,7 @@ module density
   integer :: neval
 
   public :: density_initialize, density_eval, density_eval_test
+  public :: density_cube_parametrize, density_write_cube, density_write_atoms
   public :: neval
 
 contains
@@ -44,14 +50,14 @@ contains
 
     ! Temporary arrays reassigned to module
     double precision, allocatable :: my_x(:), my_y(:), my_z(:)
-    double precision, allocatable :: my_alpha(:)
+    double precision, allocatable :: my_alpha(:), my_atom_pos(:,:)
     integer, allocatable :: my_ix(:), my_iy(:), my_iz(:)
 
     double precision, allocatable :: my_dx(:,:), my_dy(:,:), my_dz(:,:)
     double precision, allocatable :: my_ao_C(:), my_dao_C(:,:), my_ddao_C(:,:,:)
     double precision, allocatable :: my_alphaR2(:), my_exp_alphaR2(:)
     double precision, allocatable :: dmat2(:,:)
-    integer, allocatable :: inds(:)
+    integer, allocatable :: inds(:), my_atom_Z(:)
 
     ! workspace
     integer :: natm, iatm, i, j
@@ -60,6 +66,19 @@ contains
     norb = orbitals%nprim
     natm = orbitals%natm
     neval = 0
+
+    ! allocate atomic quantities
+    n_atoms = natm
+    allocate(my_atom_pos(natm, 3))
+    allocate(my_atom_z(natm))
+    do i=1,natm
+       my_atom_pos(i,:) = orbitals%xyz(i,:)
+       my_atom_z(i) = orbitals%Z(i)
+    end do
+
+    ! move to module
+    atom_z = my_atom_z
+    atom_pos = my_atom_pos
 
     ! build density matrix
     allocate(my_C(norb,norb))
@@ -416,5 +435,118 @@ subroutine density_eval_test(R)
 
 end subroutine density_eval_test
 
+
+subroutine density_cube_parametrize(cubed, cuben, origin, displ, npts)
+   implicit none
+   double precision, intent(in) :: cubed
+   integer, intent(in) :: cuben
+   double precision, intent(out) :: origin(3), displ(3,3)
+   integer, intent(out) :: npts(3)
+
+   ! TODO: random rotations / translations
+
+   ! move origin to COM
+   origin = sum(atom_pos, 1)/dble(n_atoms)
+
+   ! translate by - cubed * cuben /2 in all directions
+   origin = origin - cubed * cuben / 2d0
+
+   ! build displacement
+   displ(1,:) = (/ cubed,  0.0d0,  0.0d0/)
+   displ(2,:) = (/ 0.0d0,  cubed,  0.0d0/)
+   displ(3,:) = (/ 0.0d0,  0.0d0,  cubed/)
+   npts = (/cuben, cuben, cuben/)
+end subroutine
+
+subroutine density_write_cube(iel, origin, displacements, npts)
+   use log
+   implicit none
+   integer, intent(in) :: iel
+   double precision, intent(in) :: origin(3), displacements(3,3)
+   integer, intent(in) :: npts(3)
+
+   integer :: i,j,k,count
+   double precision :: x(3), rho
+
+    if (verbosity .ge. 0) then 
+       write(*,'(a,i3,a,i3,a,i3)') '    -> cube  nx=',npts(1),'  ny=',npts(2),'  nz=',npts(3)
+       write(*,'(a,i5)') '       tot. number of points = ', product(npts)
+    end if
+   count = 1
+
+
+   call log_program_substep('electronic density')
+   do i=0,npts(1)-1
+      do j=0,npts(2)-1
+         do k=0,npts(3)-1
+            call log_progress_bar(count, product(npts))
+            ! center of the cube element
+            x = origin &
+                    + i * displacements(1,:) &
+                    + j * displacements(2,:) &
+                    + k * displacements(3,:)
+
+            ! do electron
+            call density_eval(x, rho)
+            write(iel) rho
+            count = count + 1
+         end do
+      end do 
+   end do
+   write(*,*)
+
+end subroutine density_write_cube
+
+subroutine density_write_atoms(iat, origin, displacements, npts)
+   use log
+   implicit none
+   integer, intent(in) :: iat
+   double precision, intent(in) :: origin(3), displacements(3,3)
+   integer, intent(in) :: npts(3)
+
+   integer :: i,j,k,count, n
+   integer, allocatable :: grid(:,:,:)
+   double precision :: rvec(3)
+
+    if (verbosity .ge. 0) then 
+       write(*,'(a,i3,a,i3,a,i3)') '    -> cube  nx=',npts(1),'  ny=',npts(2),'  nz=',npts(3)
+       write(*,'(a,i5)') '       tot. number of points = ', product(npts)
+    end if
+
+   call log_program_substep('fitting atoms to grid')
+   allocate(grid(npts(1), npts(2), npts(3)))
+
+   count = 0
+   do n=1,n_atoms
+      ! call log_progress_bar(n, n_atoms)
+      rvec = atom_pos(n,:) - origin
+      i = dot_product(rvec, displacements(1,:)) &
+          / dot_product(displacements(1,:), displacements(1,:))
+      j = dot_product(rvec, displacements(2,:)) &
+          / dot_product(displacements(2,:), displacements(2,:))
+      k = dot_product(rvec, displacements(3,:)) &
+          / dot_product(displacements(3,:), displacements(3,:))
+
+      write(*,*) i,j,k
+      if ((i.gt.0).and.(i.le.npts(1))) then
+        if ((j.gt.0).and.(j.le.npts(2))) then
+          if ((k.gt.0).and.(k.le.npts(3))) then
+             grid(i,j,k) = atom_Z(n)
+             count = count + 1
+          end if
+        end if
+      end if
+      
+   end do
+   write(*,*)
+
+    if (verbosity .ge. 0) then 
+       write(*,'(a,i4,a)') '    -> fitted ', count, ' atoms to grid'
+    end if
+
+
+
+
+end subroutine density_write_atoms
 
 end module density
