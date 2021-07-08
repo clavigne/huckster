@@ -8,6 +8,7 @@ module integrals
      integer,allocatable :: bas(:,:)
      integer :: natm, nelec, charge
      integer :: nbas, nprim, norb
+     integer :: ncore, nvalence
      double precision, allocatable :: C_AO(:,:), E_AO(:)
      double precision, allocatable :: pop_AO(:)
      integer :: naos
@@ -15,7 +16,7 @@ module integrals
 
   type UnrolledMOs
      character(len=2), allocatable :: atoms(:)
-     double precision, allocatable :: Z(:)
+     integer, allocatable :: Z(:)
      double precision, allocatable :: xyz(:,:)
      double precision, allocatable :: coeffs(:,:)
      double precision, allocatable :: exps(:)
@@ -134,6 +135,7 @@ contains
           if (atomchar .eq. atomname(j)) then
              atm(CHARGE_OF, i) = j
              system%nelec = system%nelec + j
+             system%ncore = system%ncore + num_core_electrons(j)
              exit
           end if
        end do
@@ -145,6 +147,7 @@ contains
     end do
 
     system%atm = atm
+    system%nvalence = system%nelec - system%ncore
 
     ! Increment the overall atom counter
     current_n_atoms = current_n_atoms + system%natm
@@ -154,6 +157,8 @@ contains
        write(*,'(a,i4)') '          Charge:         ', system%charge
        write(*,'(a,i4)') '          N. of atoms:    ', system%natm
        write(*,'(a,i4)') '          N. of electrons:', system%nelec
+       write(*,'(a,i4)') '                   (core):', system%ncore
+       write(*,'(a,i4)') '                (valence):', system%nvalence
     end if
 
     if (verbosity > 0) then
@@ -252,7 +257,6 @@ contains
     system%norb = norb
   end subroutine integrals_build_basis
 
-
   subroutine integrals_build_atomic_orbitals(system)
     ! Load atomic orbitals for system.
     use constants, only: atomname
@@ -261,23 +265,26 @@ contains
 
     ! workspace
     integer :: i, atom_Z, n, ii, jj, kk, k, off, j
+    double precision :: nel
 
     ! ouptuts
     double precision, allocatable :: C_AO(:,:), E_AO(:), pop_AO(:)
     integer :: naos=0
+
     
     do i=1,system%natm
        naos = naos + paos(NAOS_OF, system%atm(CHARGE_OF, i))
     end do
 
     if (verbosity > 0) then
-       write(*,*) '          atom    ao energies '
+       write(*,*) '          atom    ao energies | pop '
     end if
    allocate(C_AO(naos, system%norb))
    allocate(E_AO(naos))
    allocate(pop_AO(naos))
 
    C_AO = 0.0
+   pop_AO = 0.0
    k = 1
    do i=1,system%natm
       atom_Z = system%atm(CHARGE_OF, i)
@@ -291,12 +298,12 @@ contains
       off = k                   ! row offset
 
       do j=0,n-1
+         pop_AO(k) = ENV(kk+j)
          C_AO(off:off+n-1,k) = ENV(ii:ii+n -1)
          E_AO(k) = ENV(jj+j)
-         pop_AO(k) = ENV(kk+j)
          ii = ii + n
          k = k + 1
-         if (verbosity >0) write(*, '(a, f8.2)')      '                     ', ENV(jj+j)
+         if (verbosity >0) write(*, '(a, f8.2, f8.2)')      '                     ', ENV(jj+j),pop_AO(k)
       end do
    end do
 
@@ -304,6 +311,7 @@ contains
    system%E_AO = E_AO
    system%pop_AO = pop_AO
    system%naos = naos
+   if (verbosity >0) write(*, '(a, f8.2)')      '                   total pop: ',sum(pop_AO)
  end subroutine integrals_build_atomic_orbitals
 
   subroutine integrals_overlaps(system, S)
@@ -461,7 +469,7 @@ contains
 
     do i=1,natm
        unrolled_MOs%atoms(i) = atomname(system%atm(CHARGE_OF,i))
-       unrolled_MOs%Z(i) = dble(system%atm(CHARGE_OF,i))
+       unrolled_MOs%Z(i) = system%atm(CHARGE_OF,i)
        unrolled_MOs%xyz(i,:) = env(system%atm(PTR_COORD,i)+1 : system%atm(PTR_COORD,i)+3)
     end do
 
@@ -564,7 +572,7 @@ contains
     do i=1,mos%natm
        write(iwfn, "(2x,A3,i3,4x,'(CENTRE',i3,') ',3f12.8,'  CHARGE =',f5.1)") &
             mos%atoms(i), i, i, &
-            mos%xyz(i,1:3), mos%Z(i)
+            mos%xyz(i,1:3), dble(mos%Z(i))
     end do
 
     write(iwfn,"('CENTRE ASSIGNMENTS  ',20i3)")(mos%icnt(i), i=1, mos%nprim)

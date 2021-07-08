@@ -22,6 +22,7 @@ program huckster
 
   integer, parameter :: calc_huckel=1, calc_promolecule=2
   integer :: calc_type
+  logical :: do_core_electrons
 
   ! Integrals
   type(ElectronicSystem) :: electrons
@@ -48,6 +49,7 @@ program huckster
   charge = 0
   i = 1
   calc_type = calc_huckel
+  do_core_electrons = .true.
   verbosity = 0
   do while (i .le. command_argument_count())
      call get_command_argument(i, arg)
@@ -69,6 +71,9 @@ program huckster
 
      case ('-vv', '--very-verbose')
         verbosity = 2
+
+     case ('--valence') 
+        do_core_electrons=.false.
 
      case ('-t', '--type')
         call get_command_argument(i+1,arg)
@@ -153,9 +158,9 @@ program huckster
   call integrals_build_basis(electrons)
   call log_program_step_end
 
-
   call log_program_step('Loading AO coeffs and energies')
   call integrals_build_atomic_orbitals(electrons)
+
   naos = electrons%naos
   call log_program_step_end
 
@@ -190,8 +195,6 @@ program huckster
      call log_program_substep('projecting to the primitive basis')
      call integrals_MO_AO_transform(electrons, MO_AO, MO)
 
-     call log_program_substep('projecting to the primitive basis')
-     call integrals_MO_AO_transform(electrons, MO_AO, MO)
      call log_program_step_end
 
      if (verbosity > 0) then 
@@ -207,7 +210,9 @@ program huckster
      hl_index = 1
      do ii=1,naos
         if (remaining_electrons > 0) then
-           occ(ii) = dble(min(2, remaining_electrons))
+           if ((remaining_electrons.le.electrons%nvalence).or.do_core_electrons) then
+              occ(ii) = dble(min(2, remaining_electrons))
+           end if
            remaining_electrons = remaining_electrons - min(2, remaining_electrons)
            if (remaining_electrons .eq. 0) then
               hl_index = 2
@@ -242,6 +247,10 @@ program huckster
      call log_program_step('Generating promolecule electron density')
      if (charge .ne. 0) then
         call log_err('huckster', 'promolecule density is not compatible with charged species.')
+        error stop 1
+     end if
+     if (.not.do_core_electrons) then
+        call log_err('huckster', 'promolecule density is not compatible valence-only calc.')
         error stop 1
      end if
      occ = electrons%pop_ao
