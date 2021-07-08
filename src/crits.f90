@@ -364,7 +364,7 @@ contains
 
     if (linfo .ne. 0) then
        write(*,*) 'crits_push: error in lapack dposv', linfo
-       error stop linfo
+       error stop -1
     end if
 
     rank = 0

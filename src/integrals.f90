@@ -95,7 +95,7 @@ contains
     read(2,*, iostat=info) system%natm
     if (info .ne. 0) then
        call log_err('integrals_init_from_file', 'could not read atom number from file')
-       error stop info
+       error stop -1
     end if
 
     if (system%natm + current_n_atoms > MAX_NATOMS) then
@@ -121,7 +121,7 @@ contains
        read(2,*, iostat=info) atomchar, ENV(off + 1 : off + 3)
        if (info .ne. 0) then
           call log_err('integrals_init_from_file', 'could not read atom or coordinate')
-          error stop info
+          error stop -1
        end if
 
        ENV(off+1) = ENV(off+1) / conv_bohr

@@ -157,7 +157,7 @@ program huckster
   open(unit=2, file=input_file, action='READ', iostat=info)
   if (info .ne. 0) then
      call log_err('huckster', 'could not open input geometry file: ' // input_file)
-     error stop info
+     error stop -1
   end if
   call integrals_init_from_file(2, electrons, charge)
   close(unit=2)
@@ -272,7 +272,7 @@ program huckster
 
   if (info .ne. 0) then
      call log_err('huckster', 'Could not open output wfn file')
-     error stop info
+     error stop -1
   end if
 
   ! Put the MOs into the fully unrolled, uncontracted primitive form that goes

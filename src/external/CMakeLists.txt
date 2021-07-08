@@ -11,7 +11,7 @@ list(APPEND f77-srcs
 )
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS_INIT} ${dialect77}")
-add_library(f77-libs OBJECT ${f77-srcs})
+add_library(f77-libs STATIC ${f77-srcs})
 set_target_properties(f77-libs PROPERTIES
   Fortran_MODULE_DIRECTORY ${huck-mod}
   POSITION_INDEPENDENT_CODE ON

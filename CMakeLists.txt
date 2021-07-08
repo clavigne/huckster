@@ -53,6 +53,7 @@ target_link_libraries(lib-huckster-static
   ${BLAS_LIBRARIES}
   ${LAPACK_LIBRARIES}
   cint
+  f77-libs
 )
 set_target_properties(lib-huckster-static PROPERTIES
   Fortran_MODULE_DIRECTORY ${huck-mod}
@@ -73,7 +74,6 @@ add_executable(huckster ${prog})
 target_link_libraries(huckster
   PRIVATE
   lib-huckster-static
-  f77-libs
 )
 set_target_properties(huckster PROPERTIES
   Fortran_MODULE_DIRECTORY ${huck-mod}
@@ -81,7 +81,3 @@ set_target_properties(huckster PROPERTIES
   OUTPUT_NAME "${PROJECT_NAME}"
 )
 target_include_directories(huckster PRIVATE "${huck-dir}/include")
-
-
-install(TARGETS huckster RUNTIME)
-
