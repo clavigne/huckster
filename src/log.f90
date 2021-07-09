@@ -52,6 +52,7 @@ contains
 
   subroutine log_program_step_end
     step_counter = step_counter + 1
+    if (verbosity<0) return
     write(*,*) '     done!'
     write(*,*) ''
   end subroutine log_program_step_end

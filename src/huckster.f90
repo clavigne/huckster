@@ -152,7 +152,7 @@ program huckster
   ! ---------------------------------------------------------------------------------
   ! Read input geometry
   call log_program_step('Reading geometry file')
-  write(*,*) '     file: ',input_file
+  if (verbosity.ge.0) write(*,*) '     file: ',input_file
 
   open(unit=2, file=input_file, action='READ', iostat=info)
   if (info .ne. 0) then

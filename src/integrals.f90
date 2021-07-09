@@ -355,8 +355,10 @@ contains
        val = val + S(i,i)
     end do
 
-    write(*,*) '     computed overlaps:',k
-    write(*,'(a, f6.4)') '      basis trace = ', val/dble(system%norb)
+    if (verbosity.ge.0) then
+      write(*,*) '     computed overlaps:',k
+      write(*,'(a, f6.4)') '      basis trace = ', val/dble(system%norb)
+    end if
     ! todo check if basis trace == norbs
   end subroutine integrals_overlaps
 
