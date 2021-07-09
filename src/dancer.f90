@@ -44,6 +44,7 @@ program dancer
   double precision :: origin(3)
   double precision :: displ(3,3)
   integer, parameter :: ielectrons = 12
+  integer, parameter :: iatoms = 13
 
   ! Load command line arguments
   i = 1
@@ -166,7 +167,7 @@ program dancer
 
   ! todo
   cuben = 32
-  cubed = 0.5d0 / conv_bohr ! to bohr
+  cubed = 0.25d0 / conv_bohr ! to bohr
   origin = -cubed * cuben/2
   displ = 0
   do i=1,3
@@ -182,6 +183,15 @@ program dancer
        displ,&
        npts)
   close(ielectrons)
+
+  call log_program_substep('opening file: ' // output_name // '.atoms')
+  open(unit=iatoms, file= output_name // '.atoms', access="stream")
+  call density_write_atoms( &
+       iatoms,&
+       origin,&
+       displ,&
+       npts)
+  close(iatoms)
   call log_program_step_end
 
 

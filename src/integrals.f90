@@ -16,7 +16,7 @@ module integrals
 
   type UnrolledMOs
      character(len=2), allocatable :: atoms(:)
-     integer, allocatable :: Z(:)
+     double precision, allocatable :: Z(:)
      double precision, allocatable :: xyz(:,:)
      double precision, allocatable :: occ(:)
      double precision, allocatable :: coeffs(:,:)
