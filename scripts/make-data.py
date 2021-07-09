@@ -113,7 +113,7 @@ def make_array_1d(name, data, fstr):
     k = 0
     n = np.product(data.shape)
     while True:
-        for i in range(10):
+        for i in range(8):
             out += fstr % (data.flat[k]) 
             k += 1
             if k == n:
@@ -151,7 +151,21 @@ with open('data-content.f90', 'wb') as f:
 """.encode('ascii'))
     f.write(make_array_2d('pbas', bas, '%i').encode('ascii'))
     f.write(make_array_2d('paos', aos, '%i').encode('ascii'))
-    f.write(make_array_1d('ENV(1:ENV_COORD_PTR)', env, '%f').encode('ascii'))
+
+    # env is so big that we need to break it up
+    blocks = 2048
+    ll = 1
+    ul = blocks
+    while True:
+        f.write(make_array_1d(f'env({ll}:{ul-1})', env[ll:ul], '%f').encode('ascii'))
+        if ul == env.shape[0]:
+            break
+
+        ll += blocks
+        ul += blocks
+
+        if ul > env.shape[0]:
+            ul = env.shape[0]
 
 # Copy to destination
 shutil.copy('data-header.f90', os.path.join('..', 'include', 'data-header.f90'))

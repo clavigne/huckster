@@ -5,7 +5,7 @@ set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}")
 
 project(huckster
   VERSION 0.1
-  LANGUAGES C Fortran
+  LANGUAGES CXX Fortran
 )
 
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -13,16 +13,23 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set(bounds "-fbounds-check")
 endif()
 
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  set(dialect "-axAVX2 -r8 -traceback -static")
+  set(bounds "-check bounds")
+  set(BLA_VENDOR "Intel10_64lp")
+  set(BLA_STATIC 1)
+endif()
+
 set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${bounds}")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${dialect}")
-
-# Added required packages
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
 
 # For static builds
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "build statically")
 set(ENABLE_STATIC 1 CACHE BOOL "build libcint statically")
+
+# Added required packages
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 
 # build static libcint
 add_subdirectory(libcint)
