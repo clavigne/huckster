@@ -602,6 +602,7 @@ contains
     ! workspace
     integer :: i, j, k
     double precision :: E
+    integer :: lim(2)
 
     ! This next bit is adapted from molden2aim
     ! thanks open source !
@@ -656,7 +657,14 @@ contains
 
     call log_program_substep('reading molecular orbitals')
 
-    if (verbosity .ge. 0) write(*,'(a)') '          orb     occ     energy'
+    ! limit for orbitals to print
+    lim(1) = mos%nmos/2 - 8
+    lim(2) = mos%nmos/2 + 8
+
+    if (verbosity .ge. 0) then
+       write(*,'(a)') '          orb     occ     energy'
+       if (lim(1) > 1) write(*,'(a)') '                  ...           '
+    end if
 
     do i=1,mos%nmos
        read(iwfn,"('MO',i5,5x,'MO 0.0',8x,'OCC NO =',f13.7,'  ORB. ENERGY =',f12.6)") &
@@ -670,13 +678,16 @@ contains
        read(iwfn,"(5d16.8)")(mos%coeffs(j,i), j=1,mos%nprim)
 
        if (verbosity.ge.0) then
-          write(*,'(a,i4,2f10.3)') '         ',i,mos%occ(i),mos%energy(i)
+          if ((i.ge.lim(1)).and.(i.le.lim(2))) then
+               write(*,'(a,i4,2f10.3)') '         ',i,mos%occ(i),mos%energy(i)
+          end if
        end if
 
     end do
+    if (verbosity.ge.0) then
+       if (lim(2) < mos%nmos) write(*,'(a)') '                  ...           '
+    end if
   end subroutine integrals_read_wfn
-
-
 
   ! from molden2aim -> convert spherical basis to cartesian
   Subroutine sph2car(lq,fi,fo)
