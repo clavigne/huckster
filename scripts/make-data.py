@@ -6,8 +6,9 @@ import numpy as np
 import shutil
 import os.path
 
-# Elements and basis fuctions
+# Elements and basis functions to include
 atoms = dict([(index, 'sto-3g') for index in range(1,54)])
+# Max size of a huckster calculation
 MAX_NATOMS = 1000
 
 # parameters
@@ -152,12 +153,13 @@ with open('data-content.f90', 'wb') as f:
     f.write(make_array_2d('pbas', bas, '%i').encode('ascii'))
     f.write(make_array_2d('paos', aos, '%i').encode('ascii'))
 
-    # env is so big that we need to break it up
-    blocks = 2048
-    ll = 1
+    # f.write(make_array_1d(f'env(1:ENV_COORD_PTR)', env, '%f').encode('ascii'))
+    # env is so big that we need to break it up in blocks for intel
+    blocks = 512
+    ll = 0
     ul = blocks
     while True:
-        f.write(make_array_1d(f'env({ll}:{ul-1})', env[ll:ul], '%f').encode('ascii'))
+        f.write(make_array_1d(f'env({ll+1}:{ul})', env[ll:ul], '%f').encode('ascii'))
         if ul == env.shape[0]:
             break
 
