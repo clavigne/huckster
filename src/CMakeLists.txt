@@ -1,6 +1,9 @@
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
-list(APPEND prog
+list(APPEND prog_dancer
+  "${dir}/dancer.f90"
+)
+list(APPEND prog_huckster
   "${dir}/huckster.f90"
 )
 
@@ -14,4 +17,5 @@ list(APPEND srcs
 )
 
 set(srcs ${srcs} PARENT_SCOPE)
-set(prog ${prog} PARENT_SCOPE)
+set(prog_huckster ${prog_huckster} PARENT_SCOPE)
+set(prog_dancer ${prog_dancer} PARENT_SCOPE)

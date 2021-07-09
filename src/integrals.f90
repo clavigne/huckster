@@ -18,10 +18,11 @@ module integrals
      character(len=2), allocatable :: atoms(:)
      integer, allocatable :: Z(:)
      double precision, allocatable :: xyz(:,:)
+     double precision, allocatable :: occ(:)
      double precision, allocatable :: coeffs(:,:)
+     double precision, allocatable :: energy(:)
      double precision, allocatable :: exps(:)
      integer, allocatable :: icnt(:), ityp(:)
-
      integer :: natm, nprim, nmos
   end type UnrolledMOs
 
@@ -68,6 +69,7 @@ module integrals
   public :: integrals_symm_ao2bas, integrals_symm_bas2ao
   public :: integrals_MO_AO_transform
   public :: integrals_write_to_wfn, integrals_unroll
+  public :: integrals_read_wfn
   public :: ElectronicSystem, UnrolledMOs
 
 contains
@@ -590,6 +592,89 @@ contains
     write(iwfn,"(' THE  HF ENERGY =',f20.12,' THE VIRIAL(-V/T)=',f13.8)")0.d0,2.d0
     close(iwfn)
   end subroutine integrals_write_to_wfn
+
+  subroutine integrals_read_wfn(iwfn, mos)
+    use constants, only: atomname
+    implicit none
+    integer, intent(in) :: iwfn
+    type(UnrolledMOs), intent(out) :: mos
+
+    ! workspace
+    integer :: i, j, k
+    double precision :: E
+
+    ! This next bit is adapted from molden2aim
+    ! thanks open source !
+
+    call log_program_substep('reading header')
+    read(iwfn,*) ! title line
+    read(iwfn,"('GAUSSIAN',8x,i7,' MOL ORBITALS',i7,' PRIMITIVES',i9,' NUCLEI')") &
+         mos%nmos, mos%nprim, mos%natm
+
+    if (verbosity.ge.0) then
+       write(*,'(a,i4)') '          number of molecular orbitals:',mos%nmos
+       write(*,'(a,i4)') '          number of primitive orbitals:',mos%nprim
+       write(*,'(a,i4)') '                       number of atoms:',mos%natm
+    end if
+
+    call log_program_substep('allocating')
+
+    allocate(mos%atoms(mos%natm))
+    allocate(mos%xyz(mos%natm,3))
+    allocate(mos%Z(mos%natm))
+    allocate(mos%icnt(mos%nprim))
+    allocate(mos%ityp(mos%nprim))
+    allocate(mos%exps(mos%nprim))
+    allocate(mos%occ(mos%nmos))
+    allocate(mos%coeffs(mos%nprim, mos%nmos))
+    allocate(mos%energy(mos%nmos))
+
+    call log_program_substep('reading geometry')
+
+    if (verbosity .ge. 0) write(*,'(a)') '          atom      Z        coordinates'
+    do i=1,mos%natm
+       read(iwfn, "(2x,A3,i3,4x,'(CENTRE',i3,') ',3f12.8,'  CHARGE =',f5.1)") &
+            mos%atoms(i), j, j, &
+            mos%xyz(i,1:3), mos%Z(i)
+
+       if (j.ne.i) then
+         call log_err('integrals_read_wfn', 'multi center files are not supported yet')
+         error stop -1
+       end if
+
+
+       if (verbosity.ge.0) then
+          write(*,'(a,i4,a,4f10.3)') '         ',i,mos%atoms(i),mos%Z(i),mos%xyz(i,:)
+       end if
+    end do
+
+    call log_program_substep('reading primitive basis')
+
+    read(iwfn,"('CENTRE ASSIGNMENTS  ',20i3)")(mos%icnt(i), i=1, mos%nprim)
+    read(iwfn,"('TYPE ASSIGNMENTS    ',20i3)")(mos%ityp(i), i=1, mos%nprim)
+    read(iwfn,"('EXPONENTS ',5d14.7)")(mos%exps(i), i=1, mos%nprim)
+
+    call log_program_substep('reading molecular orbitals')
+
+    if (verbosity .ge. 0) write(*,'(a)') '          orb     occ     energy'
+
+    do i=1,mos%nmos
+       read(iwfn,"('MO',i5,5x,'MO 0.0',8x,'OCC NO =',f13.7,'  ORB. ENERGY =',f12.6)") &
+            j, mos%occ(i), mos%energy(i)
+
+        if (j.ne.i) then
+            call log_err('integrals_read_wfn', 'issue with MO ordering')
+            error stop -1
+        end if
+
+       read(iwfn,"(5d16.8)")(mos%coeffs(j,i), j=1,mos%nprim)
+
+       if (verbosity.ge.0) then
+          write(*,'(a,i4,2f10.3)') '         ',i,mos%occ(i),mos%energy(i)
+       end if
+
+    end do
+  end subroutine integrals_read_wfn
 
 
 

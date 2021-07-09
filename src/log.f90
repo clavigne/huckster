@@ -47,7 +47,7 @@ contains
 
     if (verbosity < 0) return
      write(*,'(a)') '      |'
-     write(*,'(3a)') '      ',step, ' ...'
+     write(*,'(3a)') '      ',trim(step), ' ...'
    end subroutine log_program_substep
 
   subroutine log_program_step_end
