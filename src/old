@@ -1,0 +1,56 @@
+  call log_program_step_end
+
+  if (do_crit) then
+     call log_program_step('Finding critical points')
+     ! initialize density evaluator
+     call density_initialize(umos, occ)
+     call crits_initialize(umos)
+
+     call crits_do_grid
+     call crits_print
+     ! todo: if some are missing, maybe try do_bonds etc.
+     call crits_get_CPs(CPs, ncp)
+     if (verbosity .ge. 0) write(*,*) '         writing CPs to csv file'
+
+     open(unit=ifile, file= output_name // '.csv')
+     write(ifile, *) 'index,atom,rank,curv,x,y,z,rho,ellip_x,ellip_y,ellip_z'
+     do i=1, ncp
+        write(ifile,'(i4,a)', advance='no') i, ','
+        if (CPs(i)%atom_id > 0) then
+           write(ifile,'(a,a)', advance='no') umos%atoms(CPs(i)%atom_id), ','
+        else
+           write(ifile,'(a)', advance='no') ','
+        end if
+        write(ifile,'(i2,a)', advance='no') CPs(i)%rank, ','
+        write(ifile,'(i2,a)', advance='no') CPs(i)%curvature, ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(1), ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(2), ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(3), ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%electron_density, ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%ellipticity(1), ','
+        write(ifile,'(E23.15,a)', advance='no') CPs(i)%ellipticity(2), ','
+        write(ifile,'(E23.15)', advance='no') CPs(i)%ellipticity(3)
+        write(ifile,*) ''
+     end do
+     close(unit=ifile)
+
+     call log_program_step_end
+  end if
+
+  if (do_graph) then
+     call log_program_step('Connecting critical points into graph')
+     neval = 0
+     call crits_perceive_graph(adjacency)
+     call log_program_step_end
+     if (verbosity .ge. 0) write(*,*) '         writing adjacency matrix to .mat file'
+
+     open(unit=ifile, file=output_name // '.mat')
+     do i=1, ncp
+        do j=1,ncp
+           write(ifile,'(i2)',advance='no') adjacency(j, i)
+        end do
+        write(ifile,*) ''
+     end do
+     close(unit=ifile)
+     write(*,*) ''
+  end if

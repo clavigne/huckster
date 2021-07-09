@@ -22,7 +22,6 @@ program huckster
 
   integer, parameter :: calc_huckel=1, calc_promolecule=2
   integer :: calc_type
-  logical :: do_crit, do_graph
 
   ! Integrals
   type(ElectronicSystem) :: electrons
@@ -45,18 +44,10 @@ program huckster
   integer,parameter :: iwfn = 10
   integer,parameter :: icrit = 11
 
-  ! CP output
-  type(CritPoint), allocatable :: CPs(:)
-  integer :: ncp
-  integer, allocatable :: adjacency(:,:)
-  integer :: ifile
-
   ! Load command line arguments
   charge = 0
   i = 1
   calc_type = calc_huckel
-  do_crit = .false.
-  do_graph = .false.
   verbosity = 0
   do while (i .le. command_argument_count())
      call get_command_argument(i, arg)
@@ -78,13 +69,6 @@ program huckster
 
      case ('-vv', '--very-verbose')
         verbosity = 2
-
-     case ('-a', '--aim')
-        do_crit = .true.
-
-     case ('-g', '--graph')
-        do_crit = .true.        ! we need CPs for the graph
-        do_graph = .true.
 
      case ('-t', '--type')
         call get_command_argument(i+1,arg)
@@ -284,88 +268,26 @@ program huckster
   call integrals_write_to_wfn(iwfn, umos, E_MO, occ)
   close(iwfn)
 
-  call log_program_step_end
-
-  if (do_crit) then
-     call log_program_step('Finding critical points')
-     ! initialize density evaluator
-     call density_initialize(umos, occ)
-     call crits_initialize(umos)
-
-     call crits_do_grid
-     call crits_print
-     ! todo: if some are missing, maybe try do_bonds etc.
-     call crits_get_CPs(CPs, ncp)
-     if (verbosity .ge. 0) write(*,*) '         writing CPs to csv file'
-
-     open(unit=ifile, file= output_name // '.csv')
-     write(ifile, *) 'index,atom,rank,curv,x,y,z,rho,ellip_x,ellip_y,ellip_z'
-     do i=1, ncp
-        write(ifile,'(i4,a)', advance='no') i, ','
-        if (CPs(i)%atom_id > 0) then
-           write(ifile,'(a,a)', advance='no') umos%atoms(CPs(i)%atom_id), ','
-        else
-           write(ifile,'(a)', advance='no') ','
-        end if
-        write(ifile,'(i2,a)', advance='no') CPs(i)%rank, ','
-        write(ifile,'(i2,a)', advance='no') CPs(i)%curvature, ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(1), ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(2), ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%position(3), ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%electron_density, ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%ellipticity(1), ','
-        write(ifile,'(E23.15,a)', advance='no') CPs(i)%ellipticity(2), ','
-        write(ifile,'(E23.15)', advance='no') CPs(i)%ellipticity(3)
-        write(ifile,*) ''
-     end do
-     close(unit=ifile)
-
-     call log_program_step_end
-  end if
-
-  if (do_graph) then
-     call log_program_step('Connecting critical points into graph')
-     neval = 0
-     call crits_perceive_graph(adjacency)
-     call log_program_step_end
-     if (verbosity .ge. 0) write(*,*) '         writing adjacency matrix to .mat file'
-
-     open(unit=ifile, file=output_name // '.mat')
-     do i=1, ncp
-        do j=1,ncp
-           write(ifile,'(i2)',advance='no') adjacency(j, i)
-        end do
-        write(ifile,*) ''
-     end do
-     close(unit=ifile)
-     write(*,*) ''
-  end if
-
-
-
   if (verbosity .ge. 0) write(*,*) '~~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~~~'
 
   stop 0
 contains
   subroutine print_help
-    write(*,*) 'USAGE: huckster [options] -- GEOMETRY [OUTPUT]'
-    write(*,*) ''
-    write(*,*) 'Huckster is a standalone program to perform extended Huckel theory calculations,'
-    write(*,*) 'specifically to use in QTAIM calculations. It takes a single mandatory argument,'
-    write(*,*) 'a molecular geometry in the XMOL format in file GEOMETRY and outputs a AIM-format'
-    write(*,*) 'wavefunction file to OUTPUT (defaults to GEOMETRY with a .wfn extension).'
-
-    write(*,*) 'Command-line options'
-    write(*,*) '   -c, --charge CHRG          Set the global charge of the computed molecule.'
-    write(*,*) '   -t, --type TYPE            Define computation type (TYPE = {eht, pro}.)'
-    write(*,*) '   -a, --aim                  Do a QTAIM search for critical points.'
-    write(*,*) '   -g, --graph                Build molecular graph from QTAIM analysis.'
-    write(*,*) ''
-
-    write(*,*) '   -h, --help                 Print these instructions.'
-    write(*,*) '   -v, --verbose              Print more information.'
-    write(*,*) '   -vv, --very-verbose        Print more information.'
-    write(*,*) '   -q, --quiet                Silence output'
+    write(*,'(a)') 'USAGE: huckster [options] -- GEOMETRY [OUTPUT]'
+    write(*,'(a)') ''
+    write(*,'(a)') 'Huckster is a standalone program to perform extended Huckel theory calculations,'
+    write(*,'(a)') 'specifically to use in QTAIM calculations. It takes a single mandatory argument,'
+    write(*,'(a)') 'a molecular geometry in the XMOL format in file GEOMETRY and outputs a AIM-format'
+    write(*,'(a)') 'wavefunction file to OUTPUT (defaults to GEOMETRY with a .wfn extension).'
+    write(*,'(a)') 'Command-line options'
+    write(*,'(a)') '   -c, --charge CHRG          Set the global charge of the computed molecule.'
+    write(*,'(a)') '   -t, --type TYPE            Define computation type (TYPE = {eht, pro}.)'
+    write(*,'(a)') '   --valence                  Keep only valence electrons.'
+    write(*,'(a)') ''
+    write(*,'(a)') '   -h, --help                 Print these instructions.'
+    write(*,'(a)') '   -v, --verbose              Print more information.'
+    write(*,'(a)') '   -vv, --very-verbose        Print more information.'
+    write(*,'(a)') '   -q, --quiet                Silence output'
 
   end subroutine print_help
 
