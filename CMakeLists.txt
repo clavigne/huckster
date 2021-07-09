@@ -14,7 +14,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-traceback -static")
+  set(dialect "-traceback -static -assume bscc")
   set(bounds "-check bounds")
   set(BLA_VENDOR "Intel10_64lp")
   set(BLA_STATIC 1)

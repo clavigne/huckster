@@ -2,8 +2,6 @@ program huckster
   use integrals
   use constants
   use hamiltonians
-  use density
-  use crits
   use log
   implicit none
 

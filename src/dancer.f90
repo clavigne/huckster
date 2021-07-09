@@ -2,6 +2,8 @@ include 'mkl_vsl.f90'
 
 program dancer
   use integrals
+  use constants
+  use density
   use log
 
   ! random numbers
@@ -35,6 +37,13 @@ program dancer
   integer(kind=4) errcode
   integer brng,method,seed,n
   type(vsl_stream_state) :: stream
+  ! cube
+  double precision :: cubed
+  integer :: cuben
+  integer :: npts(3)
+  double precision :: origin(3)
+  double precision :: displ(3,3)
+  integer, parameter :: ielectrons = 12
 
   ! Load command line arguments
   i = 1
@@ -116,7 +125,7 @@ program dancer
 
   ! ---------------------------------------------------------------------------------
   ! Geometry adjustment (TODO: move)
-  call log_program_step('Setting cube geometry')
+  call log_program_step('Molecular geometry')
   call log_program_substep('centering system')
   com = sum(MOs%xyz,1)/MOs%natm
   do i=1, MOs%natm
@@ -149,7 +158,32 @@ program dancer
   MOs%xyz = matmul(MOs%xyz, rotz)
   call log_program_step_end
 
-  
+  ! ---------------------------------------------------------------------------------
+  ! Make cube file
+  call log_program_step('Generating cube')
+
+  call density_initialize(MOs)
+
+  ! todo
+  cuben = 32
+  cubed = 0.5d0 / conv_bohr ! to bohr
+  origin = -cubed * cuben/2
+  displ = 0
+  do i=1,3
+     displ(i,i) = cubed
+  end do
+  npts = cuben
+
+  call log_program_substep('opening file: ' // output_name // '.electrons')
+  open(unit=ielectrons, file= output_name // '.electrons', access="stream")
+  call density_write_cube( &
+       ielectrons,&
+       origin,&
+       displ,&
+       npts)
+  close(ielectrons)
+  call log_program_step_end
+
 
 
   if (verbosity .ge. 0) write(*,*) '~~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~~~'

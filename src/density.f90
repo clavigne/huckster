@@ -35,12 +35,12 @@ module density
   integer :: neval
 
   public :: density_initialize, density_eval, density_eval_test
+  public :: density_write_cube
   public :: neval
 
 contains
-  subroutine density_initialize(orbitals, occ)
+  subroutine density_initialize(orbitals)
     type(UnrolledMOs), intent(in) :: orbitals
-    double precision, intent(in) :: occ(*)
 
     ! Temporary arrays reassigned to module
     double precision, allocatable :: my_x(:), my_y(:), my_z(:)
@@ -67,7 +67,7 @@ contains
     do i=1, orbitals%nmos
        do j=1, norb
           my_C(j,:) = my_C(j,:) + orbitals%coeffs(j,i) * orbitals%coeffs(:,i) &
-               * occ(i)
+               * orbitals%occ(i)
        end do
     end do
 
@@ -416,5 +416,43 @@ subroutine density_eval_test(R)
 
 end subroutine density_eval_test
 
+subroutine density_write_cube(iel, origin, displacements, npts)
+   use log, only: verbosity, log_program_substep, log_progress_bar
+   implicit none
+   integer, intent(in) :: iel
+   double precision, intent(in) :: origin(3), displacements(3,3)
+   integer, intent(in) :: npts(3)
+
+   integer :: i,j,k,count
+   double precision :: x(3), rho
+
+    if (verbosity .ge. 0) then 
+       write(*,'(a,i3,a,i3,a,i3)') '    -> cube  nx=',npts(1),'  ny=',npts(2),'  nz=',npts(3)
+       write(*,'(a,i10)') '       tot. number of points = ', product(npts)
+    end if
+   count = 1
+
+
+   call log_program_substep('electronic density')
+   do i=0,npts(1)-1
+      call log_progress_bar(i+1, npts(1))
+      do j=0,npts(2)-1
+         do k=0,npts(3)-1
+            ! center of the cube element
+            x = origin &
+                    + i * displacements(1,:) &
+                    + j * displacements(2,:) &
+                    + k * displacements(3,:)
+
+            ! do electron
+            call density_eval(x, rho)
+            write(iel) rho
+            count = count + 1
+         end do
+      end do 
+   end do
+   if (verbosity .ge. 0) write(*,*)
+
+end subroutine density_write_cube
 
 end module density
