@@ -168,7 +168,7 @@ program huckster
   ! ---------------------------------------------------------------------------------
   ! Read input geometry
   call log_program_step('Reading geometry file')
-  write(*,*) '     file: ',input_file
+  if (verbosity.ge.0) write(*,*) '     file: ',input_file
 
   open(unit=2, file=input_file, action='READ', iostat=info)
   if (info .ne. 0) then
@@ -314,7 +314,7 @@ program huckster
 
      call log_program_substep('computing grid parameters')
      ! todo adjustable
-     cubed = 0.25d0
+     cubed = 0.5d0
      cuben = 32
      call density_cube_parametrize(cubed, cuben, origin, displ, npts)
 

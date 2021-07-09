@@ -493,7 +493,7 @@ subroutine density_write_cube(iel, origin, displacements, npts)
          end do
       end do 
    end do
-   write(*,*)
+   if (verbosity .ge. 0) write(*,*)
 
 end subroutine density_write_cube
 
@@ -527,7 +527,6 @@ subroutine density_write_atoms(iat, origin, displacements, npts)
       k = dot_product(rvec, displacements(3,:)) &
           / dot_product(displacements(3,:), displacements(3,:))
 
-      write(*,*) i,j,k
       if ((i.gt.0).and.(i.le.npts(1))) then
         if ((j.gt.0).and.(j.le.npts(2))) then
           if ((k.gt.0).and.(k.le.npts(3))) then
@@ -538,14 +537,19 @@ subroutine density_write_atoms(iat, origin, displacements, npts)
       end if
       
    end do
-   write(*,*)
+   if (verbosity .ge. 0) write(*,*)
 
-    if (verbosity .ge. 0) then 
-       write(*,'(a,i4,a)') '    -> fitted ', count, ' atoms to grid'
-    end if
+   do i=1,npts(1)
+      do j=1,npts(2)
+         do k=1,npts(3)
+            write(iat) grid(i,j,k)
+         end do
+      end do 
+   end do
 
-
-
+   if (verbosity .ge. 0) then 
+      write(*,'(a,i4,a)') '    -> fitted ', count, ' atoms to grid'
+   end if
 
 end subroutine density_write_atoms
 
