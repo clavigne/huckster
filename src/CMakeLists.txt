@@ -6,6 +6,9 @@ list(APPEND prog_dancer
 list(APPEND prog_huckster
   "${dir}/huckster.f90"
 )
+list(APPEND prog_critter
+  "${dir}/critter.f90"
+)
 
 list(APPEND srcs
   "${dir}/constants.f90"
@@ -19,3 +22,4 @@ list(APPEND srcs
 set(srcs ${srcs} PARENT_SCOPE)
 set(prog_huckster ${prog_huckster} PARENT_SCOPE)
 set(prog_dancer ${prog_dancer} PARENT_SCOPE)
+set(prog_critter ${prog_critter} PARENT_SCOPE)

@@ -78,11 +78,12 @@ program dancer
   end do
 
 
-  ! print out the program banner (TODO)
-!!$  call log_banner_dancer
+  ! ---------------------------------------------------------------------------------
+  ! Banner and file loading
+  call log_banner_dancer
 
   if ((i .eq. command_argument_count()) .or. (command_argument_count() .eq. 0)) then
-     call log_err('dancer', 'no geometry file passed')
+     call log_err('dancer', 'no wfn file passed')
      error stop -1
   else
      i = i + 1

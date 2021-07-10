@@ -18,17 +18,45 @@ contains
 
   subroutine log_banner
     if (verbosity < 0) return
-    write(*,*) '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-    write(*,*) '+======================================================+'
-    write(*,*) '|                **   HUCKSTER   **                    |'
-    write(*,*) '|                                                      |'
-    write(*,*) '|        a program for Extended Huckel Theory          |'
-    write(*,*) '|           & promolecule density estimation           |'
-    write(*,*) '|        -------------- by ------------------          |'
-    write(*,*) '|               -- Cyrille Lavigne --                  |'
-    write(*,*) '|                U. of Toronto, 2020                   |'
-    write(*,*) '+======================================================+'
+    write(*,'(a)') '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+    write(*,'(a)') '+======================================================+'
+    write(*,'(a)') '|                **   HUCKSTER   **                    |'
+    write(*,'(a)') '|                                                      |'
+    write(*,'(a)') '|        a program for Extended Huckel Theory          |'
+    write(*,'(a)') '|           & promolecule density estimation           |'
+    write(*,'(a)') '|        -------------- by ------------------          |'
+    write(*,'(a)') '|               -- Cyrille Lavigne --                  |'
+    write(*,'(a)') '|                U. of Toronto, 2021                   |'
+    write(*,'(a)') '+======================================================+'
   end subroutine log_banner
+
+  subroutine log_banner_dancer
+    if (verbosity < 0) return
+    write(*,'(a)') '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+    write(*,'(a)') '+======================================================+'
+    write(*,'(a)') '|                **    DANCER    **                    |'
+    write(*,'(a)') '|              (a friend of huckster)                  |'
+    write(*,'(a)') '|                                                      |'
+    write(*,'(a)') '|         a program for generating densities           |'
+    write(*,'(a)') '|        -------------- by ------------------          |'
+    write(*,'(a)') '|               -- Cyrille Lavigne --                  |'
+    write(*,'(a)') '|                U. of Toronto, 2021                   |'
+    write(*,'(a)') '+======================================================+'
+  end subroutine log_banner_dancer
+
+  subroutine log_banner_critter
+    if (verbosity < 0) return
+    write(*,'(a)') '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+    write(*,'(a)') '+======================================================+'
+    write(*,'(a)') '|                **   CRITTER    **                    |'
+    write(*,'(a)') '|              (a friend of huckster)                  |'
+    write(*,'(a)') '|                                                      |'
+    write(*,'(a)') '|           a program for QTAIM analysis               |'
+    write(*,'(a)') '|        -------------- by ------------------          |'
+    write(*,'(a)') '|               -- Cyrille Lavigne --                  |'
+    write(*,'(a)') '|                U. of Toronto, 2021                   |'
+    write(*,'(a)') '+======================================================+'
+  end subroutine log_banner_critter
 
   subroutine log_program_step(step)
     implicit none

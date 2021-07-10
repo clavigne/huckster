@@ -86,7 +86,7 @@ target_link_libraries(huckster
 set_target_properties(huckster PROPERTIES
   Fortran_MODULE_DIRECTORY ${huck-mod}
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
-  OUTPUT_NAME "${PROJECT_NAME}"
+  OUTPUT_NAME "huckster"
 )
 target_include_directories(huckster PRIVATE "${huck-dir}/include")
 #
@@ -103,3 +103,17 @@ set_target_properties(dancer PROPERTIES
   OUTPUT_NAME "dancer"
 )
 target_include_directories(dancer PRIVATE "${huck-dir}/include")
+#
+# Compile critter
+#
+add_executable(critter ${prog_critter})
+target_link_libraries(critter
+  PRIVATE
+  lib-huckster-static
+)
+set_target_properties(critter PROPERTIES
+  Fortran_MODULE_DIRECTORY ${huck-mod}
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+  OUTPUT_NAME "critter"
+)
+target_include_directories(critter PRIVATE "${huck-dir}/include")

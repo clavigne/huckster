@@ -153,10 +153,9 @@ contains
        write(*,'(a,i5)') '     tot. number of points = ', product(n)
     end if
 
-    count = 1
     do i=0, n(1)-1
+       call log_progress_bar(i+1, n(1))
        do j=0, n(2)-1
-          call log_progress_bar(count, product(n))
           do k=0, n(3)-1
              x = ll
              x(1) = ll(1) + i * d(1)
@@ -167,7 +166,6 @@ contains
              if (info .eq. 1 .and. verbosity > 1) then
                 write(*,'(i3,a,i3,i3,i3)') ncrits, 'g:', i, j, k
              end if
-             count = count + 1
           end do
        end do
     end do
@@ -781,7 +779,7 @@ contains
 
     hopf = nnp - nbp + nrp - ncp
     write(*,'(a)') '    Poincare-Hopf number (should = 1) '
-    write(*,'(a,a,a,a,a,a,a,a)')         '    ','ncp','   ','nbp', '   ', 'nrp', '   ','ncp'
+    write(*,'(a,a,a,a,a,a,a,a)')         '    ','nap','   ','nbp', '   ', 'nrp', '   ','ncp'
     write(*,'(a,i3,a,i3,a,i3,a,i3,a,i3)') '    ',nnp,' - ',nbp, ' + ', nrp, ' - ', ncp, ' = ', hopf
     if (hopf == 1) then
        write(*,'(a)') ':D All expected CPs were found!'
