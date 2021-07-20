@@ -28,16 +28,18 @@ program huckster
 
   ! Work parameters
   character(len=2) :: atomchar
-  integer :: i, ii, j, naos, remaining_electrons
+  integer :: i, ii, j,k, naos, remaining_electrons
 
   ! Hamiltonian / overlap
   double precision, allocatable :: S_prim(:,:)
+  double precision, allocatable :: H1_prim(:,:)
   double precision, allocatable :: H(:,:)
   double precision, allocatable :: S(:,:)
   double precision, allocatable :: MO(:,:)
   double precision, allocatable :: MO_AO(:,:)
   double precision, allocatable :: E_MO(:)
   double precision, allocatable :: occ(:)
+  double precision :: E_kin, E_en, E_ee, E_nn, E_tot
 
   ! wfn output
   integer,parameter :: iwfn = 10
@@ -180,6 +182,7 @@ program huckster
         do j =i+1, naos
            ! multiply off diag by Ei + Ej / 2
            H(i,j) = S(i,j) * (electrons%E_AO(i) + electrons%E_AO(j)) * 0.5 * K_PARAMETER
+           H(j,i) = H(i,j)
         end do
      end do
      call log_program_step_end
@@ -240,6 +243,19 @@ program huckster
         write(*,*) ''
      end if
 
+     call log_program_step('Computing energy contributions')
+     call integrals_final_energy(electrons, occ, E_MO, MO_AO, E_kin, E_en, E_ee, E_nn)
+     E_tot = E_kin + E_en + E_ee + E_nn
+     if (verbosity.ge.0) then
+         write(*,*)
+         write(*,'(a)') '        Energy contributions '
+         write(*,'(a,f12.4,a)') '            E. kinetic term    = ', E_kin, ' Eh'
+         write(*,'(a,f12.4,a)') '            E.-E. repulsion    = ', E_ee, ' Eh'
+         write(*,'(a,f12.4,a)') '            E.-N. attraction   = ', E_en, ' Eh'
+         write(*,'(a,f12.4,a)') '            N.-N. repulsion    = ', E_nn, ' Eh'
+         write(*,'(a,f12.4,a)') '            TOTAL ENERGY (EHT) = ', E_tot, ' Eh'
+     end if 
+     call log_program_step_end
 
   elseif (calc_type .eq. calc_promolecule) then
      call log_program_step('Generating promolecule electron density')
@@ -256,6 +272,13 @@ program huckster
      allocate(E_MO(naos))
      E_MO(:) = 0.0
      call log_program_step_end
+
+     ! here we could do them but like whatever
+     E_tot = 0d0
+     E_kin = 0d0
+     E_en = 0d0
+     E_ee = 0d0
+     E_nn = 0d0
   end if
 
   call log_program_step('Saving wavefunction')
@@ -273,6 +296,9 @@ program huckster
 
   call log_program_substep('writing to file: ' // output_name // '.wfn')
   call integrals_write_to_wfn(iwfn, umos, E_MO, occ)
+
+  ! Write the energy terms in addendum
+  write(iwfn,"('EHT Energy (K/EN/EE/NN): ',4f20.10)") E_kin, E_en, E_ee, E_nn
   close(iwfn)
 
   if (verbosity .ge. 0) write(*,*) '~~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~END~~~~~~'

@@ -66,6 +66,7 @@ module integrals
 
   public :: integrals_initialize, integrals_init_from_file, integrals_build_basis
   public :: integrals_build_atomic_orbitals, integrals_overlaps
+  public :: integrals_final_energy
   public :: integrals_symm_ao2bas, integrals_symm_bas2ao
   public :: integrals_MO_AO_transform
   public :: integrals_write_to_wfn, integrals_unroll
@@ -316,6 +317,7 @@ contains
    if (verbosity >0) write(*, '(a, f8.2)')      '                   total pop: ',sum(pop_AO)
  end subroutine integrals_build_atomic_orbitals
 
+
   subroutine integrals_overlaps(system, S)
     implicit none
     type(ElectronicSystem), intent(in) :: system
@@ -341,17 +343,6 @@ contains
           call cint1e_ovlp_sph(S(ii:ii+di-1,jj:jj+dj-1), shls, &
                system%atm, system%natm, system%bas, system%nbas, ENV)
 
-!!$          allocate(buf1e(di,dj))
-!!$          call cint1e_ovlp_sph(buf1e(1:di,1:dj), shls, &
-!!$               system%atm, system%natm, system%bas, system%nbas, ENV)
-!!$
-!!$          do i2=1,di
-!!$             do j2=1,dj
-!!$                S(ii+i2-1,jj+j2-1) = buf1e(i2,j2)
-!!$             end do
-!!$          end do
-!!$
-!!$          deallocate(buf1e)
           k = k + di*dj
           jj = jj + dj
        end do
@@ -369,7 +360,6 @@ contains
       write(*,*) '     computed overlaps:',k
       write(*,'(a, f6.4)') '      basis trace = ', val/dble(system%norb)
     end if
-    ! todo check if basis trace == norbs
   end subroutine integrals_overlaps
 
   subroutine integrals_symm_bas2ao(system, O, O_proj)
@@ -438,6 +428,89 @@ contains
     allocate(MO_bas(norb,naos))
     call dgemm('t', 'n', norb, naos, naos, 1.0d0, system%C_AO, naos, MO_AOs, naos, 0.0d0, MO_bas, norb)
   end subroutine integrals_MO_AO_transform
+
+ subroutine integrals_final_energy(system, occ, E_MO, MO_AO, e_kin, e_en, e_ee, e_nn)
+     ! Compute the final nuclear and electronic energies from the MO coefficient 
+     ! *in the AO basis*
+     implicit none
+     type(ElectronicSystem), intent(in) :: system
+     double precision, intent(in) :: E_MO(1:)
+     double precision, intent(in) :: occ(1:)
+     double precision, intent(in) :: MO_AO(1:, 1:)
+     double precision, intent(out) :: e_kin, e_en, e_ee, e_nn
+
+     integer :: i,j,ii,jj,k, di, dj, shls(4)
+     double precision :: ee_mo, ee_all, zi,zj,xi(3),xj(3)
+     double precision, allocatable :: h1nuc(:,:), h1kin(:,:)
+     double precision, allocatable :: h1nuc_p(:,:), h1kin_p(:,:)
+     double precision, allocatable :: rho(:,:)
+
+     ! build 1e hamiltonian
+     call log_program_substep('building one-electron Hamiltonian')
+     allocate(H1nuc_p(1:system%norb, 1:system%norb))
+     allocate(H1kin_p(1:system%norb, 1:system%norb))
+     ii = 1
+     k = 0 
+     do i=0, system%nbas-1
+       shls(1) = i; di = CINTcgto_spheric(i, system%bas)
+
+       jj = 1
+       do j=0, system%nbas-1    ! 0 based index
+          shls(2) = j; dj = CINTcgto_spheric(j, system%bas)
+
+          call cint1e_nuc_sph(H1nuc_p(ii:ii+di-1,jj:jj+dj-1), shls, &
+               system%atm, system%natm, system%bas, system%nbas, ENV)
+          k = k + di*dj
+
+          call cint1e_kin_sph(H1kin_p(ii:ii+di-1,jj:jj+dj-1), shls, &
+               system%atm, system%natm, system%bas, system%nbas, ENV)
+          k = k + di*dj
+
+          jj = jj + dj
+       end do
+
+       ii = ii + di
+     end do
+
+     if (verbosity.ge.0) then
+         write(*,*) '          computed nuclear and kinetic terms:',k
+     end if
+
+     ! transform to ao basis
+     call log_program_substep('transforming to AO basis')
+     call integrals_symm_bas2ao(system, h1nuc_p, h1nuc)
+     deallocate(h1nuc_p)
+     call integrals_symm_bas2ao(system, h1kin_p, h1kin)
+     deallocate(h1kin_p)
+
+     call log_program_substep('building one-electron density matrix')
+     allocate(rho(system%naos, system%naos))
+     rho = 0d0
+     do i=1,system%naos
+       do j=1,system%naos
+           rho(j, :) = rho(j,:) + MO_AO(j,i) * MO_AO(:,i) * occ(i) 
+       end do   
+     end do
+
+     E_kin = sum(h1kin * rho)
+     E_en = sum(h1nuc * rho)
+     E_ee = 0.5d0 * (sum(occ * E_MO) - E_kin - E_en)
+
+     ! Nuclear energy
+     E_nn = 0d0
+     do i=1,system%natm
+         do j=i+1,system%natm
+            zi = dble(system%atm(CHARGE_OF,i))
+            zj = dble(system%atm(CHARGE_OF,j))
+            xi = env(system%atm(PTR_COORD,i)+1 : system%atm(PTR_COORD,i)+3)
+            xj = env(system%atm(PTR_COORD,j)+1 : system%atm(PTR_COORD,j)+3)
+
+            E_nn = E_nn + zi * zj / sqrt(sum((xi - xj)**2d0))
+         end do 
+     end do 
+ end subroutine
+
+
 
   subroutine integrals_unroll(system, C_MO, unrolled_MOs)
     use constants, only: atomname
@@ -589,8 +662,6 @@ contains
     end do
 
     write(iwfn,"('END DATA')")
-    write(iwfn,"(' THE  HF ENERGY =',f20.12,' THE VIRIAL(-V/T)=',f13.8)")0.d0,2.d0
-    close(iwfn)
   end subroutine integrals_write_to_wfn
 
   subroutine integrals_read_wfn(iwfn, mos)
