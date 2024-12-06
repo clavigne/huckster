@@ -1,0 +1,6 @@
+{
+    "fortran.formatting.formatter": "fprettify",
+    "fortran.formatting.fprettifyArgs": [
+        "-i 2 -w 1"
+    ]
+}
