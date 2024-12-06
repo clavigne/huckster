@@ -66,7 +66,7 @@ module integrals
   public :: integrals_build_atomic_orbitals, integrals_overlaps
   public :: integrals_symm_ao2bas, integrals_symm_bas2ao
   public :: integrals_MO_AO_transform
-  public :: integrals_write_to_wfn, integrals_unroll
+  public :: integrals_write_to_wfn, integrals_unroll, integrals_read_wfn
   public :: ElectronicSystem, UnrolledMOs
 
 contains
@@ -327,17 +327,6 @@ contains
         call cint1e_ovlp_sph(S(ii:ii + di - 1, jj:jj + dj - 1), shls, &
                              system%atm, system%natm, system%bas, system%nbas, ENV)
 
-!!$          allocate(buf1e(di,dj))
-!!$          call cint1e_ovlp_sph(buf1e(1:di,1:dj), shls, &
-!!$               system%atm, system%natm, system%bas, system%nbas, ENV)
-!!$
-!!$          do i2=1,di
-!!$             do j2=1,dj
-!!$                S(ii+i2-1,jj+j2-1) = buf1e(i2,j2)
-!!$             end do
-!!$          end do
-!!$
-!!$          deallocate(buf1e)
         k = k + di*dj
         jj = jj + dj
       end do
@@ -580,8 +569,8 @@ contains
     use constants, only: atomname
     implicit none
     integer, intent(in) :: iwfn
-    double precision, intent(out) :: E_MO(1:)
-    double precision, intent(out) :: occ(1:)
+    double precision, allocatable, intent(out) :: E_MO(:)
+    double precision, allocatable, intent(out) :: occ(:)
     type(UnrolledMOs), intent(out) :: mos
     ! temp
 
@@ -626,6 +615,8 @@ contains
     read (iwfn, "(10x, 5d14.7)") (mos%exps(i), i=1, mos%nprim)
 
     allocate (mos%coeffs(mos%nprim, mos%nmos))
+    allocate (occ(mos%nmos))
+    allocate (E_MO(mos%nmos))
     do i = 1, mos%nmos
       read (iwfn, "(2x,i5,5x,6x,8x,8x,f13.7,15x,f12.6)") &
         imo, occ0, e
