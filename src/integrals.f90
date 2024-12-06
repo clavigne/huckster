@@ -94,16 +94,16 @@ contains
     read (2, *, iostat=info) system%natm
     if (info .ne. 0) then
       call log_err('integrals_init_from_file', 'could not read atom number from file')
-      error stop-1
+      error stop - 1
     end if
 
-    if (system%natm+current_n_atoms > MAX_NATOMS) then
+    if (system%natm + current_n_atoms > MAX_NATOMS) then
       ! TODO : logger
       write (*, *) 'integrals_init_from_file:'
       print '(a,i8,/)', 'program has been compiled with MAX_NATOMS = ', MAX_NATOMS
       print '(a,i8,a,/)', 'your integral system now contains ', system%natm, ' atoms'
       print '(a/)', 'to run such a large system, recompile with a modified MAX_NATOMS parameter.'
-      error stop-1
+      error stop - 1
     end if
 
     read (2, *)                    !skip comment
@@ -112,41 +112,41 @@ contains
     system%charge = charge
 
     ! Set the pointer for the geometry
-    off = ENV_COORD_PTR+3*current_n_atoms
+    off = ENV_COORD_PTR + 3*current_n_atoms
 
     allocate (atm(ATM_SLOTS, system%natm))
     do i = 1, system%natm
       atm(PTR_COORD, i) = off
-      read (2, *, iostat=info) atomchar, ENV(off+1:off+3)
+      read (2, *, iostat=info) atomchar, ENV(off + 1:off + 3)
       if (info .ne. 0) then
         call log_err('integrals_init_from_file', 'could not read atom or coordinate')
-        error stop-1
+        error stop - 1
       end if
 
-      ENV(off+1) = ENV(off+1)/conv_bohr
-      ENV(off+2) = ENV(off+2)/conv_bohr
-      ENV(off+3) = ENV(off+3)/conv_bohr
+      ENV(off + 1) = ENV(off + 1)/conv_bohr
+      ENV(off + 2) = ENV(off + 2)/conv_bohr
+      ENV(off + 3) = ENV(off + 3)/conv_bohr
 
-      off = off+3
+      off = off + 3
 
       do j = 1, 110
         if (atomchar .eq. atomname(j)) then
           atm(CHARGE_OF, i) = j
-          system%nelec = system%nelec+j
+          system%nelec = system%nelec + j
           exit
         end if
       end do
 
       if (j .eq. 110) then
         call log_err('integrals_init_from_file', 'atomic name is invalid ='//atomchar)
-        error stop-1
+        error stop - 1
       end if
     end do
 
     system%atm = atm
 
     ! Increment the overall atom counter
-    current_n_atoms = current_n_atoms+system%natm
+    current_n_atoms = current_n_atoms + system%natm
 
     ! Write out
     if (verbosity .ge. 0) then
@@ -180,27 +180,27 @@ contains
       bas_ptr = paos(PTR_ATOM, atom_Z)
       if (bas_ptr < 1) then
         print '(2a)', 'integrals_build_basis: no basis function for element ', atomname(atom_Z)
-        error stop-1
+        error stop - 1
       end if
       ishell = 0                       ! nshells
       iprims = 0                       ! primitives
       iaos = 0                       ! aos
       basis_loop: do while (.true.)
         if (pbas(ATOM_OF, bas_ptr) .eq. atom_Z) then
-          ishell = ishell+1
-          di = CINTcgto_spheric(bas_ptr-1, pbas)
-          iaos = iaos+di
-          iprims = iprims+pbas(NPRIM_OF, bas_ptr)*di
+          ishell = ishell + 1
+          di = CINTcgto_spheric(bas_ptr - 1, pbas)
+          iaos = iaos + di
+          iprims = iprims + pbas(NPRIM_OF, bas_ptr)*di
 
-          bas_ptr = bas_ptr+1
+          bas_ptr = bas_ptr + 1
         else
           exit basis_loop
         end if
       end do basis_loop
 
-      nbas = nbas+ishell
-      norb = norb+iaos
-      nprim = nprim+iprims
+      nbas = nbas + ishell
+      norb = norb + iaos
+      nprim = nprim + iprims
 
       if (verbosity > 0) then
         write (*, '(a,i3,2a,i3,a,i3,a,i3,a,i3)') &
@@ -222,15 +222,15 @@ contains
       basis_loop2: do while (.true.)
         if (pbas(ATOM_OF, bas_ptr) .eq. atom_Z) then
           bas(:, ishell) = pbas(:, bas_ptr)
-          bas(ATOM_OF, ishell) = iatom-1 ! zero-based indexing
+          bas(ATOM_OF, ishell) = iatom - 1 ! zero-based indexing
 
           if (bas(NCTR_OF, ishell) .ne. 1) then
             call log_err('integrals_build_basis', 'uncontracted shells not supported yet!')
-            error stop-1
+            error stop - 1
           end if
 
-          bas_ptr = bas_ptr+1
-          ishell = ishell+1
+          bas_ptr = bas_ptr + 1
+          ishell = ishell + 1
         else
           exit basis_loop2
         end if
@@ -263,7 +263,7 @@ contains
     integer :: naos = 0
 
     do i = 1, system%natm
-      naos = naos+paos(NAOS_OF, system%atm(CHARGE_OF, i))
+      naos = naos + paos(NAOS_OF, system%atm(CHARGE_OF, i))
     end do
 
     if (verbosity > 0) then
@@ -278,21 +278,21 @@ contains
     do i = 1, system%natm
       atom_Z = system%atm(CHARGE_OF, i)
       n = paos(NAOS_OF, atom_Z)
-      ii = paos(PTR_AOS_C, atom_Z)+1
-      jj = paos(PTR_AOS_E, atom_Z)+1
-      kk = paos(PTR_AOS_OCC, atom_Z)+1
+      ii = paos(PTR_AOS_C, atom_Z) + 1
+      jj = paos(PTR_AOS_E, atom_Z) + 1
+      kk = paos(PTR_AOS_OCC, atom_Z) + 1
 
       if (verbosity > 0) write (*, '(a,i3,a)') '          ', i, atomname(atom_Z)
       ! where the atom group is
       off = k                   ! row offset
 
-      do j = 0, n-1
-        C_AO(off:off+n-1, k) = ENV(ii:ii+n-1)
-        E_AO(k) = ENV(jj+j)
-        pop_AO(k) = ENV(kk+j)
-        ii = ii+n
-        k = k+1
-        if (verbosity > 0) write (*, '(a, f8.2)') '                     ', ENV(jj+j)
+      do j = 0, n - 1
+        C_AO(off:off + n - 1, k) = ENV(ii:ii + n - 1)
+        E_AO(k) = ENV(jj + j)
+        pop_AO(k) = ENV(kk + j)
+        ii = ii + n
+        k = k + 1
+        if (verbosity > 0) write (*, '(a, f8.2)') '                     ', ENV(jj + j)
       end do
     end do
 
@@ -317,14 +317,14 @@ contains
 
     ii = 1
     k = 0                           !todo only L or U part of matrix?
-    do i = 0, system%nbas-1           ! 0 based index
+    do i = 0, system%nbas - 1           ! 0 based index
       shls(1) = i; di = CINTcgto_spheric(i, system%bas)
 
       jj = 1
-      do j = 0, system%nbas-1    ! 0 based index
+      do j = 0, system%nbas - 1    ! 0 based index
         shls(2) = j; dj = CINTcgto_spheric(j, system%bas)
 
-        call cint1e_ovlp_sph(S(ii:ii+di-1, jj:jj+dj-1), shls, &
+        call cint1e_ovlp_sph(S(ii:ii + di - 1, jj:jj + dj - 1), shls, &
                              system%atm, system%natm, system%bas, system%nbas, ENV)
 
 !!$          allocate(buf1e(di,dj))
@@ -338,17 +338,17 @@ contains
 !!$          end do
 !!$
 !!$          deallocate(buf1e)
-        k = k+di*dj
-        jj = jj+dj
+        k = k + di*dj
+        jj = jj + dj
       end do
 
-      ii = ii+di
+      ii = ii + di
     end do
 
     ! Compute norm of basis
     val = 0.0
     do i = 1, system%norb
-      val = val+S(i, i)
+      val = val + S(i, i)
     end do
 
     if (verbosity .ge. 0) then
@@ -443,7 +443,7 @@ contains
     ! compute how many cartesian basis we will have
     ncart = 0
     do i = 1, nbas
-      ncart = ncart+CINTcgto_cart(i-1, system%bas)*system%bas(NPRIM_OF, i)
+      ncart = ncart + CINTcgto_cart(i - 1, system%bas)*system%bas(NPRIM_OF, i)
     end do
 
     unrolled_MOs%nmos = naos
@@ -457,7 +457,7 @@ contains
     do i = 1, natm
       unrolled_MOs%atoms(i) = atomname(system%atm(CHARGE_OF, i))
       unrolled_MOs%Z(i) = dble(system%atm(CHARGE_OF, i))
-      unrolled_MOs%xyz(i, :) = env(system%atm(PTR_COORD, i)+1:system%atm(PTR_COORD, i)+3)
+      unrolled_MOs%xyz(i, :) = env(system%atm(PTR_COORD, i) + 1:system%atm(PTR_COORD, i) + 3)
     end do
 
     allocate (unrolled_MOs%icnt(ncart))
@@ -468,18 +468,18 @@ contains
     jj = 1                          ! AO index
     do i = 1, nbas                                  !shells
       do j = 1, system%bas(NPRIM_OF, i)             !primitives
-        do k = 1, CINTcgto_cart(i-1, system%bas)       !number of cartesian functions
-          unrolled_MOs%icnt(ii) = system%bas(ATOM_OF, i)+1
-          unrolled_MOs%exps(ii) = env(system%bas(PTR_EXP, i)+j)
+        do k = 1, CINTcgto_cart(i - 1, system%bas)       !number of cartesian functions
+          unrolled_MOs%icnt(ii) = system%bas(ATOM_OF, i) + 1
+          unrolled_MOs%exps(ii) = env(system%bas(PTR_EXP, i) + j)
           ! this follows the .wfn / AIM  standard (or should anyway!)
-          unrolled_MOs%ityp(ii) = angular_start(system%bas(ANG_OF, i))+k
+          unrolled_MOs%ityp(ii) = angular_start(system%bas(ANG_OF, i)) + k
 
           ! update primitive counter
-          ii = ii+1
+          ii = ii + 1
         end do
 
         ! update AO index
-        jj = jj+1
+        jj = jj + 1
       end do
     end do
 
@@ -491,24 +491,24 @@ contains
       ii = 1
       jj = 1
       do i = 1, nbas                                  !shells
-        nsph = CINTcgto_spheric(i-1, system%bas)
+        nsph = CINTcgto_spheric(i - 1, system%bas)
         do j = 1, system%bas(NPRIM_OF, i)             !primitives
           ! ii is the spheric primitive index, jj is the cartesian primitive index
 
           ! coefficient of primitives * norm * MO coefficients
           coeffs(1:nsph) = cintgto_norm(system%bas(ANG_OF, i), &
-                                        env(system%bas(PTR_EXP, i)+j)) &
-                           *env(system%bas(PTR_COEFF, i)+j)*C_MO(ii:ii+nsph-1, imo)
+                                        env(system%bas(PTR_EXP, i) + j)) &
+                           *env(system%bas(PTR_COEFF, i) + j)*C_MO(ii:ii + nsph - 1, imo)
 
           ! convert to cartesian representation
-          ncart = CINTcgto_cart(i-1, system%bas)
+          ncart = CINTcgto_cart(i - 1, system%bas)
           call sph2car(system%bas(ANG_OF, i), coeffs(1:nsph), coeffs_cart(1:ncart))
 
-          unrolled_MOs%coeffs(jj:jj+ncart-1, imo) = coeffs_cart(1:ncart)
-          jj = jj+ncart
+          unrolled_MOs%coeffs(jj:jj + ncart - 1, imo) = coeffs_cart(1:ncart)
+          jj = jj + ncart
         end do
 
-        ii = ii+nsph
+        ii = ii + nsph
       end do
     end do
 
@@ -586,8 +586,8 @@ contains
     ! temp
 
     ! workspace
-    integer :: i, j, k, iatom
-    double precision :: xyz(1:3), chrg
+    integer :: i, j, k, iatom, imo
+    double precision :: xyz(1:3), chrg, e, occ0
     character(len=16) :: filetype
     character(len=2) :: atom
 
@@ -597,7 +597,7 @@ contains
 
     if (index(filetype, "GAUSSIAN") .eq. 0) then
       call log_err('integrals_build_basis', 'uncontracted shells not supported yet!')
-      error stop-1
+      error stop - 1
     end if
 
     print "('n mos:   ', i10)", mos%nmos
@@ -625,12 +625,23 @@ contains
     read (iwfn, "(20x,20i3)") (mos%ityp(i), i=1, mos%nprim)
     read (iwfn, "(10x, 5d14.7)") (mos%exps(i), i=1, mos%nprim)
 
+    allocate (mos%coeffs(mos%nprim, mos%nmos))
+    do i = 1, mos%nmos
+      read (iwfn, "(2x,i5,5x,6x,8x,8x,f13.7,15x,f12.6)") &
+        imo, occ0, e
+
+      occ(imo) = occ0
+      E_MO(imo) = e
+
+      read (iwfn, "(5d16.8)") (mos%coeffs(j, imo), j=1, mos%nprim)
+    end do
+
     close (iwfn)
   end subroutine integrals_read_wfn
 
 ! from molden2aim -> convert spherical basis to cartesian
   subroutine sph2car(lq, fi, fo)
-    implicit real(kind=8) (a-h, o-z)
+    implicit real(kind=8) (a - h, o - z)
     integer :: lq, i, j
     dimension         :: fi(*), fo(*)
 
@@ -643,33 +654,33 @@ contains
       fo(1:6) = 0.0d0
       do j = 1, 5
         do i = 1, 6
-          fo(i) = fo(i)+s2cd(i, j)*fi(j)
+          fo(i) = fo(i) + s2cd(i, j)*fi(j)
         end do
       end do
     case (3)    ! F
       fo(1:10) = 0.0d0
       do j = 1, 7
         do i = 1, 10
-          fo(i) = fo(i)+s2cf(i, j)*fi(j)
+          fo(i) = fo(i) + s2cf(i, j)*fi(j)
         end do
       end do
     case (4)    ! G
       fo(1:15) = 0.0d0
       do j = 1, 9
         do i = 1, 15
-          fo(i) = fo(i)+s2cg(i, j)*fi(j)
+          fo(i) = fo(i) + s2cg(i, j)*fi(j)
         end do
       end do
     case (5)    ! H
       fo(1:21) = 0.0d0
       do j = 1, 11
         do i = 1, 21
-          fo(i) = fo(i)+s2ch(i, j)*fi(j)
+          fo(i) = fo(i) + s2ch(i, j)*fi(j)
         end do
       end do
     case default
       write (*, *) 'sph2car: angular momentum invalid', lq
-      error stop-1
+      error stop - 1
     end select
 
     return

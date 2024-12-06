@@ -120,9 +120,9 @@ contains
 
     ! Search for bond cps midpoint between every atom pair
     do ia = 1, natm
-      do ib = ia+1, natm
-        if (sqrt(sum((atoms(ia, :)-atoms(ib, :))**2)) < MAX_BOND_DISTANCE) then
-          x0 = (atoms(ia, :)+atoms(ib, :))/2.0
+      do ib = ia + 1, natm
+        if (sqrt(sum((atoms(ia, :) - atoms(ib, :))**2)) < MAX_BOND_DISTANCE) then
+          x0 = (atoms(ia, :) + atoms(ib, :))/2.0
           call crits_search(x0, info)
           if (info .eq. 1) then
             write (*, '(i3,a,i3,i3)') ncrits, 'B:', ia, ib
@@ -142,10 +142,10 @@ contains
 
     ! Compute grid boundaries
     do i = 1, 3
-      ul(i) = maxval(atoms(:, i))+GRID_SPACING*1.5
-      ll(i) = minval(atoms(:, i))-GRID_SPACING*1.5
-      n(i) = int(ceiling((ul(i)-ll(i))/GRID_SPACING))
-      d(i) = (ul(i)-ll(i))/n(i)
+      ul(i) = maxval(atoms(:, i)) + GRID_SPACING*1.5
+      ll(i) = minval(atoms(:, i)) - GRID_SPACING*1.5
+      n(i) = int(ceiling((ul(i) - ll(i))/GRID_SPACING))
+      d(i) = (ul(i) - ll(i))/n(i)
     end do
 
     if (verbosity .ge. 0) then
@@ -154,20 +154,20 @@ contains
     end if
 
     count = 1
-    do i = 0, n(1)-1
-      do j = 0, n(2)-1
+    do i = 0, n(1) - 1
+      do j = 0, n(2) - 1
         call log_progress_bar(count, product(n))
-        do k = 0, n(3)-1
+        do k = 0, n(3) - 1
           x = ll
-          x(1) = ll(1)+i*d(1)
-          x(2) = ll(2)+j*d(2)
-          x(3) = ll(3)+k*d(3)
+          x(1) = ll(1) + i*d(1)
+          x(2) = ll(2) + j*d(2)
+          x(3) = ll(3) + k*d(3)
 
           call crits_search(x, info)
           if (info .eq. 1 .and. verbosity > 1) then
             write (*, '(i3,a,i3,i3,i3)') ncrits, 'g:', i, j, k
           end if
-          count = count+1
+          count = count + 1
         end do
       end do
     end do
@@ -216,7 +216,7 @@ contains
     integer, parameter :: lwork = 256
     double precision :: work(lwork)
 
-    crits_stat_searches = crits_stat_searches+1
+    crits_stat_searches = crits_stat_searches + 1
     x = x0
     info = 0
     dx_last = 0d0
@@ -228,9 +228,9 @@ contains
 
       if (atom_density(x) < MIN_ATOM_DENSITY) then
         if (i .eq. 1) then
-          crits_stat_noatoms(1) = crits_stat_noatoms(1)+1
+          crits_stat_noatoms(1) = crits_stat_noatoms(1) + 1
         else
-          crits_stat_noatoms(2) = crits_stat_noatoms(2)+1
+          crits_stat_noatoms(2) = crits_stat_noatoms(2) + 1
         end if
 
         return
@@ -238,23 +238,23 @@ contains
 
       if (is_colliding(x) .ne. 0) then
         if (i .eq. 1) then
-          crits_stat_prev_cp(1) = crits_stat_prev_cp(1)+1
+          crits_stat_prev_cp(1) = crits_stat_prev_cp(1) + 1
         else
-          crits_stat_prev_cp(2) = crits_stat_prev_cp(2)+1
+          crits_stat_prev_cp(2) = crits_stat_prev_cp(2) + 1
         end if
 
         return
       end if
 
       call density_eval(x, rho0, rho1, rho2)
-      dx = dx_last*NR_MIXING+rho1*(1d0-NR_MIXING)
+      dx = dx_last*NR_MIXING + rho1*(1d0 - NR_MIXING)
       dx_last = rho1
 
       if (is_below_threshold(rho0, rho1)) then
         if (i .eq. 1) then
-          crits_stat_nodensity(1) = crits_stat_nodensity(1)+1
+          crits_stat_nodensity(1) = crits_stat_nodensity(1) + 1
         else
-          crits_stat_nodensity(2) = crits_stat_nodensity(2)+1
+          crits_stat_nodensity(2) = crits_stat_nodensity(2) + 1
         end if
 
         return
@@ -276,11 +276,11 @@ contains
         return
       else
 
-        x = x+dx
+        x = x + dx
       end if
     end do
 
-    crits_stat_maxiter = crits_stat_maxiter+1
+    crits_stat_maxiter = crits_stat_maxiter + 1
   contains
     double precision function atom_density(x)
       implicit none
@@ -290,8 +290,8 @@ contains
 
       atom_density = 0d0
       do i = 1, natm
-        d = sum((x-atoms(i, :))**2)
-        atom_density = atom_density+exp(-sqrt(d)/radii(i))
+        d = sum((x - atoms(i, :))**2)
+        atom_density = atom_density + exp(-sqrt(d)/radii(i))
       end do
 
     end function atom_density
@@ -321,7 +321,7 @@ contains
     is_colliding = 0
     ! Check for collision against atoms
     do i = 1, natm
-      d = sum((x-atoms(i, :))**2)
+      d = sum((x - atoms(i, :))**2)
       if (sqrt(d) < RTRUST) then
         is_colliding = i
         return
@@ -331,9 +331,9 @@ contains
     ! Check for collision against CPs
     n => cps
     do i = 1, ncrits
-      d = sum((x-n%R)**2)
+      d = sum((x - n%R)**2)
       if (sqrt(d) < RTRUST) then
-        is_colliding = i+natm
+        is_colliding = i + natm
         return
       end if
 
@@ -361,15 +361,15 @@ contains
 
     if (linfo .ne. 0) then
       write (*, *) 'crits_push: error in lapack dposv', linfo
-      error stop-1
+      error stop - 1
     end if
 
     rank = 0
     curv = 0
     do j = 1, 3
       if (abs(w(j)) > TOL_RANK) then
-        rank = rank+1
-        curv = curv+int(sign(1d0, w(j)))
+        rank = rank + 1
+        curv = curv + int(sign(1d0, w(j)))
       end if
     end do
 
@@ -385,7 +385,7 @@ contains
     ! Move pointer to the next element
     allocate (cps_next%next)
     cps_next => cps_next%next
-    ncrits = ncrits+1
+    ncrits = ncrits + 1
 
   end subroutine crits_push_cp
 
@@ -404,7 +404,7 @@ contains
     double precision :: rho0
     integer :: i, k
 
-    np = natm+ncrits
+    np = natm + ncrits
     allocate (C(np))
 
     k = 1
@@ -417,7 +417,7 @@ contains
       C(k)%atom_id = i
       C(k)%electron_density = rho0
       C(k)%ellipticity = -1
-      k = k+1
+      k = k + 1
     end do
 
     ! Loop through cps
@@ -430,7 +430,7 @@ contains
       C(k)%electron_density = ni%rho
       C(k)%ellipticity = ni%w
       ni => ni%next
-      k = k+1
+      k = k + 1
     end do
 
     OutputCPs = C
@@ -453,7 +453,7 @@ contains
 
     ! Allocate empty adjacency matrix
     counts = 0
-    np = natm+ncrits
+    np = natm + ncrits
     allocate (A(np, np))
     A = 0
 
@@ -464,12 +464,12 @@ contains
       ! if i is a bond
       if ((ni%curv .eq. -1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the correct direction
-        x0 = ni%R+ni%V(:, 3)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(1), -1d0)
+        x0 = ni%R + ni%V(:, 3)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(1), -1d0)
 
         ! do opposite direction
-        x0 = ni%R-ni%V(:, 3)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(2), -1d0)
+        x0 = ni%R - ni%V(:, 3)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(2), -1d0)
 
         if (verbosity > 1) then
           write (*, *) ''
@@ -480,56 +480,56 @@ contains
           if (verbosity > 1) &
             write (*, '(a, i2, a, i2)') ' is a bond between atom ', &
             endpoints(1), ' and atom ', endpoints(2)
-          A(i+natm, endpoints(1)) = 1
-          A(i+natm, endpoints(2)) = 1
-          A(endpoints(1), i+natm) = 1
-          A(endpoints(2), i+natm) = 1
-          counts(1) = counts(1)+2
+          A(i + natm, endpoints(1)) = 1
+          A(i + natm, endpoints(2)) = 1
+          A(endpoints(1), i + natm) = 1
+          A(endpoints(2), i + natm) = 1
+          counts(1) = counts(1) + 2
         else
           if (verbosity > 1) write (*, '(a, i2, a, i2)') ' is a bond CP but did not converge!!'
           cycle crits
         end if
 
         ! Test if it connects to rings...
-        x0 = ni%R+ni%V(:, 2)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(3), 1d0)
+        x0 = ni%R + ni%V(:, 2)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(3), 1d0)
 
-        x0 = ni%R-ni%V(:, 2)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(4), 1d0)
+        x0 = ni%R - ni%V(:, 2)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(4), 1d0)
 
-        x0 = ni%R+ni%V(:, 1)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(5), 1d0)
+        x0 = ni%R + ni%V(:, 1)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(5), 1d0)
 
-        x0 = ni%R-ni%V(:, 1)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(6), 1d0)
+        x0 = ni%R - ni%V(:, 1)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(6), 1d0)
 
         do n = 3, 6
           if (endpoints(n) > 0 .and. is_ring(endpoints(n))) then
             if (verbosity > 1) write (*, '(a, i2)') '           it also connects to ring CP#', &
-              endpoints(n)-natm
-            A(i+natm, endpoints(n)) = 1
-            A(endpoints(n), i+natm) = 1
-            counts(2) = counts(2)+1
+              endpoints(n) - natm
+            A(i + natm, endpoints(n)) = 1
+            A(endpoints(n), i + natm) = 1
+            counts(2) = counts(2) + 1
           end if
         end do
 
       else if ((ni%curv .eq. 1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the direction of the negative
         ! eigenvalue
-        x0 = ni%R+ni%V(:, 1)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(1), 1d0)
+        x0 = ni%R + ni%V(:, 1)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(1), 1d0)
 
         ! do opposite direction
-        x0 = ni%R-ni%V(:, 1)*NUDGE_FACTOR
-        call crits_trace_path(i+natm, x0, endpoints(2), 1d0)
+        x0 = ni%R - ni%V(:, 1)*NUDGE_FACTOR
+        call crits_trace_path(i + natm, x0, endpoints(2), 1d0)
 
         if (verbosity > 1) write (*, '(a,i3,a)') 'CP ', i, ' is a ring CP'
         do n = 1, 2
           if (endpoints(n) > 0 .and. is_cage(endpoints(n))) then
             if (verbosity > 1) write (*, '(a, i2)') '           that connects to cage CP#', endpoints(n)
-            A(i+natm, endpoints(n)) = 1
-            A(endpoints(n), i+natm) = 1
-            counts(3) = counts(3)+1
+            A(i + natm, endpoints(n)) = 1
+            A(endpoints(n), i + natm) = 1
+            counts(3) = counts(3) + 1
           end if
         end do
       end if
@@ -557,7 +557,7 @@ contains
     integer :: k
 
     nj => cps
-    do k = 2, i-natm
+    do k = 2, i - natm
       nj => nj%next
     end do
 
@@ -575,7 +575,7 @@ contains
     integer :: k
 
     nj => cps
-    do k = 2, i-natm
+    do k = 2, i - natm
       nj => nj%next
     end do
 
@@ -745,11 +745,11 @@ contains
       if (n%rank .eq. 3) then
         select case (n%curv)
         case (-1)
-          nbp = nbp+1
+          nbp = nbp + 1
         case (1)
-          nrp = nrp+1
+          nrp = nrp + 1
         case (3)
-          ncp = ncp+1
+          ncp = ncp + 1
         end select
       end if
 
@@ -760,7 +760,7 @@ contains
       write (*, '(a,a)') '                   |', '  Number of occurences'
       write (*, '(a,i5)') '           attempts|', crits_stat_searches
       write (*, '(a,i5)') '          successes|', ncrits
-      write (*, '(a,i5)') '           failures|', crits_stat_searches-ncrits
+      write (*, '(a,i5)') '           failures|', crits_stat_searches - ncrits
       write (*, '(a)') '-------------------| tot.    iter=1'
       write (*, '(a,i5,a, i8)') '    No atom density|', sum(crits_stat_noatoms), '  ', crits_stat_noatoms(1)
       write (*, '(a,i5,a, i8)') 'No electron density|', sum(crits_stat_nodensity), '  ', crits_stat_nodensity(1)
@@ -774,7 +774,7 @@ contains
     write (*, '(a,i3)') '     cage crit. points:', ncp
     write (*, *) ''
 
-    hopf = nnp-nbp+nrp-ncp
+    hopf = nnp - nbp + nrp - ncp
     write (*, '(a)') '    Poincare-Hopf number (should = 1) '
     write (*, '(a,a,a,a,a,a,a,a)') '    ', 'ncp', '   ', 'nbp', '   ', 'nrp', '   ', 'ncp'
     write (*, '(a,i3,a,i3,a,i3,a,i3,a,i3)') '    ', nnp, ' - ', nbp, ' + ', nrp, ' - ', ncp, ' = ', hopf

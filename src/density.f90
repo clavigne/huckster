@@ -66,7 +66,7 @@ contains
     my_C = 0d0
     do i = 1, orbitals%nmos
       do j = 1, norb
-        my_C(j, :) = my_C(j, :)+orbitals%coeffs(j, i)*orbitals%coeffs(:, i) &
+        my_C(j, :) = my_C(j, :) + orbitals%coeffs(j, i)*orbitals%coeffs(:, i) &
                      *occ(i)
       end do
     end do
@@ -175,7 +175,7 @@ contains
 
     if (itype < 1 .or. itype > 56) then
       write (*, *) 'assign_powers: itype out of range = ', itype
-      error stop-1
+      error stop - 1
     end if
 
     l = PATDAT(1, itype)
@@ -195,7 +195,7 @@ contains
     integer :: i, j, m, n, norb2, iorb, npow2
     double precision :: accum
 
-    neval = neval+1
+    neval = neval + 1
 
     ! So the trick here is to only do those integrals that have a sufficiently
     ! high exponent. We want to do this with minimal branching logic. The way we
@@ -206,16 +206,16 @@ contains
     iorb = 1               ! this is the index for orbitals that are not skipped
     do i = 1, norb
       ! first powers
-      dx(iorb, 1) = (x(i)-R(1))
-      dy(iorb, 1) = (y(i)-R(2))
-      dz(iorb, 1) = (z(i)-R(3))
+      dx(iorb, 1) = (x(i) - R(1))
+      dy(iorb, 1) = (y(i) - R(2))
+      dz(iorb, 1) = (z(i) - R(3))
 
       ! second powers
       dx(iorb, 2) = dx(iorb, 1)**2
       dy(iorb, 2) = dy(iorb, 1)**2
       dz(iorb, 2) = dz(iorb, 1)**2
 
-      alphaR2(iorb) = -alpha(i)*(dx(iorb, 2)+dy(iorb, 2)+dz(iorb, 2))
+      alphaR2(iorb) = -alpha(i)*(dx(iorb, 2) + dy(iorb, 2) + dz(iorb, 2))
 
       if (alphaR2(iorb) < lcutoff) cycle ! we skip this orbital
 
@@ -229,11 +229,11 @@ contains
 
       ! this array will be used to repack densmat
       indices(iorb) = i
-      iorb = iorb+1
+      iorb = iorb + 1
     end do
 
     ! new number of orbitals
-    norb2 = iorb-1
+    norb2 = iorb - 1
 
     ! new max power, in case we removed all integrals with high powers
     npow2 = max(maxval(packed_ix(1:norb2)), maxval(packed_iy(1:norb2)), maxval(packed_iz(1:norb2)))
@@ -247,10 +247,10 @@ contains
     end do
 
     ! powers of dx, dy, dz
-    do i = 2, npow2-1
-      call vdMul(norb2, dx(:, 1), dx(:, i), dx(:, i+1))
-      call vdMul(norb2, dy(:, 1), dy(:, i), dy(:, i+1))
-      call vdMul(norb2, dz(:, 1), dz(:, i), dz(:, i+1))
+    do i = 2, npow2 - 1
+      call vdMul(norb2, dx(:, 1), dx(:, i), dx(:, i + 1))
+      call vdMul(norb2, dy(:, 1), dy(:, i), dy(:, i + 1))
+      call vdMul(norb2, dz(:, 1), dz(:, i), dz(:, i + 1))
     end do
 
     if (present(drho) .or. present(ddrho)) then
@@ -281,9 +281,9 @@ contains
       !          +  exp(-alpha(i) R(i)^2) ix(i) * x^(ix(i) - 1) y^iy(i) z^iz(i) if ix(i) neq 0
       !          = C(i) * (ix / x - 2 alpha x)
       do i = 1, norb2
-        dao_C(i, 1) = ao_C(i)*(-2d0*packed_alpha(i)*dx(i, 1)+packed_ix(i)*dx(i, -1))
-        dao_C(i, 2) = ao_C(i)*(-2d0*packed_alpha(i)*dy(i, 1)+packed_iy(i)*dy(i, -1))
-        dao_C(i, 3) = ao_C(i)*(-2d0*packed_alpha(i)*dz(i, 1)+packed_iz(i)*dz(i, -1))
+        dao_C(i, 1) = ao_C(i)*(-2d0*packed_alpha(i)*dx(i, 1) + packed_ix(i)*dx(i, -1))
+        dao_C(i, 2) = ao_C(i)*(-2d0*packed_alpha(i)*dy(i, 1) + packed_iy(i)*dy(i, -1))
+        dao_C(i, 3) = ao_C(i)*(-2d0*packed_alpha(i)*dz(i, 1) + packed_iz(i)*dz(i, -1))
       end do
     end if
 
@@ -293,21 +293,21 @@ contains
       !               = dC(i)/dx * (ix/x - 2 alpha x)
       !               +  C(i) * (-ix/x^2 - 2 alpha)
       do i = 1, norb2
-        ddao_C(i, 1, 1) = dao_C(i, 1)*(-2d0*packed_alpha(i)*dx(i, 1)+packed_ix(i)*dx(i, -1)) &
-                          +ao_C(i)*(-2d0*packed_alpha(i)-packed_ix(i)*dx(i, -2))
+        ddao_C(i, 1, 1) = dao_C(i, 1)*(-2d0*packed_alpha(i)*dx(i, 1) + packed_ix(i)*dx(i, -1)) &
+                          + ao_C(i)*(-2d0*packed_alpha(i) - packed_ix(i)*dx(i, -2))
 
-        ddao_C(i, 2, 2) = dao_C(i, 2)*(-2d0*packed_alpha(i)*dy(i, 1)+packed_iy(i)*dy(i, -1)) &
-                          +ao_C(i)*(-2d0*packed_alpha(i)-packed_iy(i)*dy(i, -2))
+        ddao_C(i, 2, 2) = dao_C(i, 2)*(-2d0*packed_alpha(i)*dy(i, 1) + packed_iy(i)*dy(i, -1)) &
+                          + ao_C(i)*(-2d0*packed_alpha(i) - packed_iy(i)*dy(i, -2))
 
-        ddao_C(i, 3, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dz(i, 1)+packed_iz(i)*dz(i, -1)) &
-                          +ao_C(i)*(-2d0*packed_alpha(i)-packed_iz(i)*dz(i, -2))
+        ddao_C(i, 3, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dz(i, 1) + packed_iz(i)*dz(i, -1)) &
+                          + ao_C(i)*(-2d0*packed_alpha(i) - packed_iz(i)*dz(i, -2))
 
         ! off diagonal elements of hessian
         ! d^2 C(i)/dx dy = d/dy C(i) * (ix/x - 2 alpha x)
         !               = dC(i)/dy * (ix/x - 2 alpha x)
-        ddao_C(i, 1, 2) = dao_C(i, 2)*(-2d0*packed_alpha(i)*dx(i, 1)+packed_ix(i)*dx(i, -1))
-        ddao_C(i, 1, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dx(i, 1)+packed_ix(i)*dx(i, -1))
-        ddao_C(i, 2, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dy(i, 1)+packed_iy(i)*dy(i, -1))
+        ddao_C(i, 1, 2) = dao_C(i, 2)*(-2d0*packed_alpha(i)*dx(i, 1) + packed_ix(i)*dx(i, -1))
+        ddao_C(i, 1, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dx(i, 1) + packed_ix(i)*dx(i, -1))
+        ddao_C(i, 2, 3) = dao_C(i, 3)*(-2d0*packed_alpha(i)*dy(i, 1) + packed_iy(i)*dy(i, -1))
       end do
     end if
 
@@ -315,7 +315,7 @@ contains
     rho = 0d0
     do j = 1, norb2
       do i = 1, j
-        rho = rho+packed_densmat(i, j)*ao_C(i)*ao_C(j)
+        rho = rho + packed_densmat(i, j)*ao_C(i)*ao_C(j)
       end do
     end do
 
@@ -325,9 +325,9 @@ contains
         accum = 0d0
         do j = 1, norb2
           do i = 1, j
-            accum = accum+packed_densmat(i, j)*( &
+            accum = accum + packed_densmat(i, j)*( &
                     +dao_C(i, m)*ao_C(j) &
-                    +ao_C(i)*dao_C(j, m))
+                    + ao_C(i)*dao_C(j, m))
           end do
         end do
         drho(m) = accum
@@ -341,11 +341,11 @@ contains
           accum = 0d0
           do j = 1, norb2
             do i = 1, j
-              accum = accum+packed_densmat(i, j)*( &
+              accum = accum + packed_densmat(i, j)*( &
                       +ddao_C(i, m, n)*ao_C(j) &
-                      +dao_C(i, m)*dao_C(j, n) &
-                      +dao_C(i, n)*dao_C(j, m) &
-                      +ao_C(i)*ddao_C(j, m, n))
+                      + dao_C(i, m)*dao_C(j, n) &
+                      + dao_C(i, n)*dao_C(j, m) &
+                      + ao_C(i)*ddao_C(j, m, n))
             end do
           end do
 
@@ -369,9 +369,9 @@ contains
     Rdy = R
     Rdz = R
 
-    Rdx(1) = Rdx(1)+1d-5
-    Rdy(2) = Rdy(2)+1d-5
-    Rdz(3) = Rdz(3)+1d-5
+    Rdx(1) = Rdx(1) + 1d-5
+    Rdy(2) = Rdy(2) + 1d-5
+    Rdz(3) = Rdz(3) + 1d-5
 
     ! density
     write (*, *) "rho0"
@@ -382,34 +382,34 @@ contains
     ! 1st derivatives
     write (*, *) "d rho0 / dx, numerical vs analytical"
     call density_eval(Rdx, r0x, r1x, r2x)
-    write (*, *) "x", (r0-r0x)/1d-5, r1(1)
+    write (*, *) "x", (r0 - r0x)/1d-5, r1(1)
     call density_eval(Rdy, r0x, r1x, r2x)
-    write (*, *) "y", (r0-r0x)/1d-5, r1(2)
+    write (*, *) "y", (r0 - r0x)/1d-5, r1(2)
     call density_eval(Rdz, r0x, r1x, r2x)
-    write (*, *) "z", (r0-r0x)/1d-5, r1(3)
+    write (*, *) "z", (r0 - r0x)/1d-5, r1(3)
     write (*, *) ""
 
     ! 2nd derivatives
     write (*, *) "d^2 rho0 / dx dy, numerical vs analytical, diagonal"
     call density_eval(Rdx, r0x, r1x, r2x)
-    write (*, *) "xx", (r1(1)-r1x(1))/1d-5, r2(1, 1)
+    write (*, *) "xx", (r1(1) - r1x(1))/1d-5, r2(1, 1)
 
     call density_eval(Rdy, r0x, r1x, r2x)
-    write (*, *) "yy", (r1(2)-r1x(2))/1d-5, r2(2, 2)
+    write (*, *) "yy", (r1(2) - r1x(2))/1d-5, r2(2, 2)
 
     call density_eval(Rdz, r0x, r1x, r2x)
-    write (*, *) "zz", (r1(3)-r1x(3))/1d-5, r2(3, 3)
+    write (*, *) "zz", (r1(3) - r1x(3))/1d-5, r2(3, 3)
     write (*, *) ""
 
     write (*, *) "d^2 rho0 / dx dy, numerical vs analytical, off-diagonal"
     call density_eval(Rdx, r0x, r1x, r2x)
-    write (*, *) "xy", (r1(2)-r1x(2))/1d-5, r2(1, 2)
+    write (*, *) "xy", (r1(2) - r1x(2))/1d-5, r2(1, 2)
 
     call density_eval(Rdx, r0x, r1x, r2x)
-    write (*, *) "xz", (r1(3)-r1x(3))/1d-5, r2(1, 3)
+    write (*, *) "xz", (r1(3) - r1x(3))/1d-5, r2(1, 3)
 
     call density_eval(Rdy, r0x, r1x, r2x)
-    write (*, *) "yz", (r1(3)-r1x(3))/1d-5, r2(2, 3)
+    write (*, *) "yz", (r1(3) - r1x(3))/1d-5, r2(2, 3)
     write (*, *) ""
 
   end subroutine density_eval_test
