@@ -1,20 +1,23 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 
 # Conda
 set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}")
 
 project(huckster
-  VERSION 0.1
+  VERSION 0.3
   LANGUAGES C Fortran
 )
 
+# frustratingly, we need to declare includes directly because gfortran doesn't accept including files from -isystem
+# which is what CMAKE uses for the default include dir
+set(FORTRAN_INCL "-I $ENV{CONDA_PREFIX}/include")
+
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-    set(dialect "-fbackslash -ffree-form -std=f2008 -fimplicit-none")
-    set(bounds "-fbounds-check")
+    set(dialect "-fbackslash -ffree-form -std=f2008 -Wall -Wimplicit-interface -Wimplicit-procedure")
 endif()
 
-set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${bounds}")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${dialect}")
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${FORTRAN_INCL} -Og -fbounds-check -fbacktrace")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${FORTRAN_INCL} ${dialect}")
 
 # Added required packages
 find_package(BLAS REQUIRED)
@@ -54,6 +57,7 @@ target_link_libraries(lib-huckster-static
   ${LAPACK_LIBRARIES}
   cint
   f77-libs
+  mkl-libs
 )
 set_target_properties(lib-huckster-static PROPERTIES
   Fortran_MODULE_DIRECTORY ${huck-mod}
