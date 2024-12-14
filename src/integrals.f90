@@ -1,5 +1,6 @@
 module integrals
   use log
+  use mkl, only: dgemm, dsymm
   private
 
   ! Holder for integral data
@@ -14,11 +15,12 @@ module integrals
   end type ElectronicSystem
 
   type UnrolledMOs
-    character(len=2), allocatable :: atoms(:)
+    character(len=10), allocatable :: atoms(:)
     double precision, allocatable :: Z(:)
     double precision, allocatable :: xyz(:, :)
     double precision, allocatable :: coeffs(:, :)
     double precision, allocatable :: exps(:)
+    double precision, allocatable :: occ(:), E(:)
     integer, allocatable :: icnt(:), ityp(:)
 
     integer :: natm, nprim, nmos
@@ -91,7 +93,7 @@ contains
     integer :: off, i, j
     integer :: info
 
-    read (2, *, iostat=info) system%natm
+    read (unit, *, iostat=info) system%natm
     if (info .ne. 0) then
       call log_err('integrals_init_from_file', 'could not read atom number from file')
       error stop - 1
@@ -106,7 +108,7 @@ contains
       error stop - 1
     end if
 
-    read (2, *)                    !skip comment
+    read (unit, *)                    !skip comment
 
     system%nelec = -charge
     system%charge = charge
@@ -117,7 +119,7 @@ contains
     allocate (atm(ATM_SLOTS, system%natm))
     do i = 1, system%natm
       atm(PTR_COORD, i) = off
-      read (2, *, iostat=info) atomchar, ENV(off + 1:off + 3)
+      read (unit, *, iostat=info) atomchar, ENV(off + 1:off + 3)
       if (info .ne. 0) then
         call log_err('integrals_init_from_file', 'could not read atom or coordinate')
         error stop - 1
@@ -149,13 +151,13 @@ contains
     current_n_atoms = current_n_atoms + system%natm
 
     ! Write out
-    if (verbosity .ge. 0) then
+    if (logging()) then
       write (*, '(a,i4)') '          Charge:         ', system%charge
       write (*, '(a,i4)') '          N. of atoms:    ', system%natm
       write (*, '(a,i4)') '          N. of electrons:', system%nelec
     end if
 
-    if (verbosity > 0) then
+    if (verbose()) then
       write (*, '(a,i4)') '          N. atoms so far in evaluator:', current_n_atoms
     end if
   end subroutine integrals_init_from_file
@@ -172,7 +174,7 @@ contains
     integer, allocatable :: bas(:, :)
 
     ! Count all the basis functions
-    if (verbosity .ge. 0) then
+    if (verbose()) then
       write (*, *) '                 nshells   norbs    nprims'
     end if
     do iatom = 1, system%natm
@@ -202,7 +204,7 @@ contains
       norb = norb + iaos
       nprim = nprim + iprims
 
-      if (verbosity > 0) then
+      if (verbose()) then
         write (*, '(a,i3,2a,i3,a,i3,a,i3,a,i3)') &
           '      ', iatom, atomname(atom_Z), &
           '       ', ishell, &
@@ -237,7 +239,7 @@ contains
       end do basis_loop2
     end do
 
-    if (verbosity .ge. 0) then
+    if (logging()) then
       write (*, '(a,i4,a,i4,a,i4)') '       Tot.      ', &
         nbas, '      ', norb, '      ', nprim
     end if
@@ -266,7 +268,7 @@ contains
       naos = naos + paos(NAOS_OF, system%atm(CHARGE_OF, i))
     end do
 
-    if (verbosity > 0) then
+    if (verbose()) then
       write (*, *) '          atom    ao energies '
     end if
     allocate (C_AO(naos, system%norb))
@@ -282,7 +284,7 @@ contains
       jj = paos(PTR_AOS_E, atom_Z) + 1
       kk = paos(PTR_AOS_OCC, atom_Z) + 1
 
-      if (verbosity > 0) write (*, '(a,i3,a)') '          ', i, atomname(atom_Z)
+      if (verbose()) write (*, '(a,i3,a)') '          ', i, atomname(atom_Z)
       ! where the atom group is
       off = k                   ! row offset
 
@@ -292,7 +294,7 @@ contains
         pop_AO(k) = ENV(kk + j)
         ii = ii + n
         k = k + 1
-        if (verbosity > 0) write (*, '(a, f8.2)') '                     ', ENV(jj + j)
+        if (verbose()) write (*, '(a, f8.2)') '                     ', ENV(jj + j)
       end do
     end do
 
@@ -308,8 +310,8 @@ contains
     double precision, allocatable, intent(out) :: S(:, :)
 
     ! workspace
-    double precision, allocatable :: buf1e(:, :), val
-    integer :: ii, jj, k, i, j, di, dj, i2, j2
+    double precision :: val
+    integer :: ii, jj, k, i, j, di, dj
     integer :: shls(4)
 
     if (allocated(S)) deallocate (S)
@@ -340,7 +342,7 @@ contains
       val = val + S(i, i)
     end do
 
-    if (verbosity .ge. 0) then
+    if (verbose()) then
       write (*, *) '     computed overlaps:', k
       write (*, '(a, f6.4)') '      basis trace = ', val/dble(system%norb)
     end if
@@ -413,16 +415,18 @@ contains
     call dgemm('t', 'n', norb, naos, naos, 1.0d0, system%C_AO, naos, MO_AOs, naos, 0.0d0, MO_bas, norb)
   end subroutine integrals_MO_AO_transform
 
-  subroutine integrals_unroll(system, C_MO, unrolled_MOs)
+  subroutine integrals_unroll(system, C_MO, E_MO, occ, unrolled_MOs)
     use constants, only: atomname
     implicit none
     type(ElectronicSystem), intent(in) :: system
     double precision, intent(in) :: C_MO(1:, 1:)
+    double precision, intent(in) :: E_MO(1:)
+    double precision, intent(in) :: occ(1:)
     type(UnrolledMOs), intent(out) :: unrolled_MOs
 
     ! workspace
     double precision, allocatable ::  coeffs(:), coeffs_cart(:)
-    integer :: nbas, natm, naos, i, j, k, ii, jj, imo, n
+    integer :: nbas, natm, naos, i, j, k, ii, jj, imo
     integer :: ncart, nsph
 
     naos = system%naos
@@ -475,8 +479,13 @@ contains
     allocate (coeffs(1:11))
     allocate (coeffs_cart(1:21))
     allocate (unrolled_MOs%coeffs(ncart, naos))
+    allocate (unrolled_MOs%E(naos))
+    allocate (unrolled_MOS%occ(naos))
 
     do imo = 1, naos
+      unrolled_MOs%E(imo) = E_MO(imo)
+      unrolled_MOs%occ(imo) = occ(imo)
+
       ii = 1
       jj = 1
       do i = 1, nbas                                  !shells
@@ -526,16 +535,14 @@ contains
     end function angular_start
   end subroutine integrals_unroll
 
-  subroutine integrals_write_to_wfn(iwfn, mos, E_MO, occ)
+  subroutine integrals_write_to_wfn(iwfn, mos)
     use constants, only: atomname
     implicit none
     integer, intent(in) :: iwfn
-    double precision, intent(in) :: E_MO(1:)
-    double precision, intent(in) :: occ(1:)
     type(UnrolledMOs), intent(in) :: mos
 
     ! workspace
-    integer :: i, j, k
+    integer :: i, j
 
     ! This next bit is adapted from molden2aim
     ! thanks open source !
@@ -555,7 +562,7 @@ contains
 
     do i = 1, mos%nmos
       write (iwfn, "('MO',i5,5x,'MO 0.0',8x,'OCC NO =',f13.7,'  ORB. ENERGY =',f12.6)") &
-        i, occ(i), E_MO(i)
+        i, mos%occ(i), mos%E(i)
 
       write (iwfn, "(5d16.8)") (mos%coeffs(j, i), j=1, mos%nprim)
     end do
@@ -565,33 +572,38 @@ contains
     close (iwfn)
   end subroutine integrals_write_to_wfn
 
-  subroutine integrals_read_wfn(iwfn, mos, E_MO, occ)
+  subroutine integrals_read_wfn(iwfn, mos)
     use constants, only: atomname
     implicit none
     integer, intent(in) :: iwfn
-    double precision, allocatable, intent(out) :: E_MO(:)
-    double precision, allocatable, intent(out) :: occ(:)
     type(UnrolledMOs), intent(out) :: mos
     ! temp
 
     ! workspace
-    integer :: i, j, k, iatom, imo
+    integer :: i, j, iatom, imo
     double precision :: xyz(1:3), chrg, e, occ0
     character(len=16) :: filetype
-    character(len=2) :: atom
+    character(len=10) :: atom
+    character(len=255) :: header
 
-    read (iwfn, *) ! skip the first line always
+    read (iwfn, "(A255)") header
+    if (logging()) then
+      print *, "  reading from..."
+      print *, "    "//header
+    end if
+
     read (iwfn, "(a16, i7, 13x, i7, 11x, i9)") &
       filetype, mos%nmos, mos%nprim, mos%natm
 
     if (index(filetype, "GAUSSIAN") .eq. 0) then
-      call log_err('integrals_build_basis', 'uncontracted shells not supported yet!')
-      error stop - 1
+      call log_err('integrals_read_wfn', 'possibly unsupported filetype: '//filetype)
     end if
 
-    print "('n mos:   ', i10)", mos%nmos
-    print "('n prim:  ', i10)", mos%nprim
-    print "('n atoms: ', i10)", mos%natm
+    if (logging()) then
+      print "('  num of atoms:                       ', i10)", mos%natm
+      print "('  num of molecular orbitals           ', i10)", mos%nmos
+      print "('  num of primitives basis functions:  ', i10)", mos%nprim
+    end if
 
     allocate (mos%atoms(mos%natm))
     allocate (mos%Z(mos%natm))
@@ -599,11 +611,15 @@ contains
 
     ! read atoms, position and charges
     do i = 1, mos%natm
-      read (iwfn, "(3x, A2, 14x, i3, 2x, 3f12.8, 10x, f5.1)") &
+      read (iwfn, "(2x, A10, 7x, i3, 2x, 3f12.8, 10x, f5.1)") &
         atom, iatom, xyz, chrg
+
+      if (very_verbose()) then
+
+      end if
       mos%xyz(iatom, :) = xyz
       mos%Z(iatom) = chrg
-      mos%atoms(iatom) = atom
+      mos%atoms(iatom) = trim(atom)
     end do
 
     ! and now the fun bit
@@ -615,14 +631,18 @@ contains
     read (iwfn, "(10x, 5d14.7)") (mos%exps(i), i=1, mos%nprim)
 
     allocate (mos%coeffs(mos%nprim, mos%nmos))
-    allocate (occ(mos%nmos))
-    allocate (E_MO(mos%nmos))
+    allocate (mos%occ(mos%nmos))
+    allocate (mos%E(mos%nmos))
     do i = 1, mos%nmos
       read (iwfn, "(2x,i5,5x,6x,8x,8x,f13.7,15x,f12.6)") &
         imo, occ0, e
 
-      occ(imo) = occ0
-      E_MO(imo) = e
+      mos%occ(imo) = occ0
+      mos%E(imo) = e
+
+      if (verbose()) then
+        write (*, "('    MO ', I5, ' E = ', f12.6, ' Hartrees     occ = ', f5.2)") imo, e, occ0
+      end if
 
       read (iwfn, "(5d16.8)") (mos%coeffs(j, imo), j=1, mos%nprim)
     end do

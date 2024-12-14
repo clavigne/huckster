@@ -19,7 +19,7 @@ module constants
 
   ! Atomic radii were obtained from
   ! https://doi.org/10.1002/chem.201602949
-  ! as compiled by the mendeleev, and converted to a.u.
+  ! and converted to a.u.
   ! see script radii.py
   double precision, parameter :: ATOMIC_RADII(110) = (/ &
                                                      0.815d0, 0.709d0, 1.164d0, 1.159d0, 1.085d0, 1.005d0, 0.947d0, 0.905d0, &

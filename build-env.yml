@@ -1,12 +1,14 @@
 name: huckster-build
 channels:
-  - defaults
-  - conda-forge
+  - https://software.repos.intel.com/python/conda/
 dependencies:
-  - python=3.7
+  - python=3.12
   - cmake
+  - make
   - gfortran_linux-64
+  - mkl-include
   - mkl-devel
+  - mkl-static
   - scipy
   - pandas
   - pip
