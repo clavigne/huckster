@@ -20,7 +20,9 @@ program huckster
   ! Parameter sets
   type(Parameters) :: ps
   character(len=4096) :: path
-  character(len=4096) :: output_file
+  character(len=:), allocatable :: output_file
+  character(len=:), allocatable :: input
+  character(len=:), allocatable :: output
   integer :: info
 
   ! Integrals
@@ -121,23 +123,33 @@ program huckster
   else
     i = i + 1
     call get_command_argument(i, path)
-    ps%input_path = trim(path)
+    input = trim(path)
 
     if (i < command_argument_count()) then
-      call get_command_argument(i + 1, output_file)
+      call get_command_argument(i + 1, path)
+      output_file = trim(path)
     else
-      output_file = ps%input_path
+      output_file = input
     end if
   end if
 
   ! remove extension
   associate (idot => index(output_file, '.', back=.true.))
     if (idot > 0) then
-      ps%output = output_file(1:idot - 1)
+      output = output_file(1:idot - 1)
     else
-      ps%output = output_file(1:len_trim(output_file))
+      output = output_file(1:len_trim(output_file))
     end if
   end associate
+
+
+  ! open (unit=21, file=output // ".nml", action="READ", iostat=info)
+  ! if (info .ne. 0) then
+  !   call log_err('huckster', 'could not open output nml file: '// output // ".nml")
+  !   error stop - 1
+  ! end if
+  ! call params_import(21, ps)
+  ! close(21)
 
   if (ps%calc_type .ne. calc_skip) then
     ! ---------------------------------------------------------------------------------
@@ -147,11 +159,11 @@ program huckster
     ! ---------------------------------------------------------------------------------
     ! Read input geometry
     call log_program_step('Reading geometry file')
-    if (logging()) write (*, *) '     file: ', ps%input_path
+    if (logging()) write (*, *) '     file: ', input
 
-    open (unit=2, file=ps%input_path, action='READ', iostat=info)
+    open (unit=2, file=input, action='READ', iostat=info)
     if (info .ne. 0) then
-      call log_err('huckster', 'could not open input geometry file: '//ps%input_path)
+      call log_err('huckster', 'could not open input geometry file: '// input)
       error stop - 1
     end if
     call integrals_init_from_file(2, electrons, ps%charge)
@@ -261,7 +273,7 @@ program huckster
     end if
 
     call log_program_step('Saving wavefunction')
-    open (iwfn, file=ps%output//'.wfn', action='write', iostat=info)
+    open (iwfn, file=output//'.wfn', action='write', iostat=info)
 
     if (info .ne. 0) then
       call log_err('huckster', 'Could not open output wfn file')
@@ -276,14 +288,14 @@ program huckster
     deallocate (occ)
     deallocate (MO)
 
-    call log_program_substep('writing to file: '//ps%output//'.wfn')
+    call log_program_substep('writing to file: '//output//'.wfn')
     call integrals_write_to_wfn(iwfn, umos)
     close (iwfn)
 
     call log_program_step_end
   else
     call log_program_step('Reading wavefunction from file')
-    open (iwfn, file=ps%output//'.wfn', action='read', iostat=info)
+    open (iwfn, file=output//'.wfn', action='read', iostat=info)
 
     if (info .ne. 0) then
       call log_err('huckster', 'Could not open wfn file')
@@ -319,7 +331,7 @@ program huckster
     call log_program_substep("Saving found critical points")
     if (logging()) write (*, *) '         writing CPs to csv file'
 
-    open (unit=iout, file=ps%output//'.csv')
+    open (unit=iout, file=output//'.csv')
     write (iout, *) 'index,atom,rank,curv,x,y,z,rho,ellip_x,ellip_y,ellip_z'
     do i = 1, ncp
       write (iout, '(i4,a)', advance='no') i, ','
@@ -351,7 +363,7 @@ program huckster
     call log_program_step_end
     if (logging()) write (*, *) '         writing adjacency matrix to .mat file'
 
-    open (unit=iout, file=ps%output//'.mat')
+    open (unit=iout, file=output//'.mat')
     do i = 1, ncp
       do j = 1, ncp
         write (iout, '(i2)', advance='no') adjacency(j, i)
