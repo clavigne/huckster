@@ -2,10 +2,12 @@ module crits
   use log
   use ed
   use mkl, only: dsyev, dsysv
-  use params, only: CritEngine
+  use params, only: CritNR, CritPath, CritSearch, Parameters
   private
 
-  type(CritEngine) :: ps
+  type(CritPath) :: ps_path
+  type(CritNR) :: ps_nr
+  type(CritSearch) :: ps_search
 
   double precision, allocatable :: atoms(:, :)
   double precision, allocatable :: radii(:)
@@ -65,12 +67,14 @@ contains
     use integrals
     implicit none
     type(UnrolledMOs), intent(in) :: MOs
-    type(CritEngine), intent(in) :: params
+    type(Parameters), intent(in) :: params
     ! workspace
     double precision, allocatable :: my_radii(:)
     integer :: i
 
-    ps = params
+    ps_nr = params%nr
+    ps_path = params%path
+    ps_search = params%search
 
     ! clear any previous data
     call crits_close
@@ -132,7 +136,7 @@ contains
     found = 0
     do ia = 1, natm
       do ib = ia + 1, natm
-        if (sqrt(sum((atoms(ia, :) - atoms(ib, :))**2)) < ps%search_bond_distance) then
+        if (sqrt(sum((atoms(ia, :) - atoms(ib, :))**2)) < ps_search%max_bond) then
           x0 = (atoms(ia, :) + atoms(ib, :))/2.0
           call crits_search(x0, info)
           if (info .eq. 1) then
@@ -158,9 +162,9 @@ contains
 
     ! Compute grid boundaries
     do i = 1, 3
-      ul(i) = maxval(atoms(:, i)) + ps%search_grid_spacing*1.5
-      ll(i) = minval(atoms(:, i)) - ps%search_grid_spacing*1.5
-      n(i) = int(ceiling((ul(i) - ll(i))/ps%search_grid_spacing))
+      ul(i) = maxval(atoms(:, i)) + ps_search%grid*1.5
+      ll(i) = minval(atoms(:, i)) - ps_search%grid*1.5
+      n(i) = int(ceiling((ul(i) - ll(i))/ps_search%grid))
       d(i) = (ul(i) - ll(i))/n(i)
     end do
 
@@ -237,12 +241,12 @@ contains
     dx_last = 0d0
 
     ! newton raphson
-    do i = 1, ps%max_neval
+    do i = 1, ps_nr%max_neval
       ! Checks are done in order of copmutational expense :
 
       ! if we are far enough from every atoms we just don't bother computing anything
       ! this is very cheap
-      if (atom_density(x) < ps%atom_density_abandon) then
+      if (atom_density(x) < ps_nr%min_atom_density) then
         if (i .eq. 1) then
           crits_stat_noatoms(1) = crits_stat_noatoms(1) + 1
         else
@@ -263,7 +267,7 @@ contains
       end if
 
       call ed_eval(x, rho0, rho1, rho2)
-      dx = dx_last*ps%nr_mixing + rho1*(1d0 - ps%nr_mixing)
+      dx = dx_last*ps_nr%mixing + rho1*(1d0 - ps_nr%mixing)
       dx_last = rho1
 
       if (is_below_threshold(rho0, rho1)) then
@@ -286,7 +290,7 @@ contains
         return
       end if
 
-      if (sqrt(dot_product(rho1, rho1)) < ps%tol_root) then
+      if (sqrt(dot_product(rho1, rho1)) < ps_nr%tol_root) then
         ! found a critical point.
         call crits_push_cp(x, i)
         info = 1
@@ -318,10 +322,10 @@ contains
     double precision, intent(in) :: rho0, rho1(3)
 
     is_below_threshold = .false.
-    if (rho0 < TOL_DENSITY_ABANDON) then
-      if (abs(rho1(1)) > TOL_GRAD_ABANDON) return
-      if (abs(rho1(2)) > TOL_GRAD_ABANDON) return
-      if (abs(rho1(3)) > TOL_GRAD_ABANDON) return
+    if (rho0 < ps_nr%tol_density_abandon) then
+      if (abs(rho1(1)) > ps_nr%tol_grad_abandon) return
+      if (abs(rho1(2)) > ps_nr%tol_grad_abandon) return
+      if (abs(rho1(3)) > ps_nr%tol_grad_abandon) return
 
       ! rho0 < threshold and so are all three components of rho1
       is_below_threshold = .true.
@@ -340,7 +344,7 @@ contains
     n => cps
     do i = 1, ncrits
       d = sum((x - n%R)**2)
-      if (sqrt(d) < ps%rtrust) then
+      if (sqrt(d) < ps_nr%rtrust) then
         is_colliding = i
         return
       end if
@@ -375,7 +379,7 @@ contains
     rank = 0
     curv = 0
     do j = 1, 3
-      if (abs(w(j)) > ps%tol_rank) then
+      if (abs(w(j)) > ps_nr%tol_rank) then
         rank = rank + 1
         curv = curv + int(sign(1d0, w(j)))
       end if
@@ -465,11 +469,11 @@ contains
       ! if i is a bond
       if ((ni%curv .eq. -1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the correct direction
-        x0 = ni%R + ni%V(:, 3)*ps%path_nudge_factor
+        x0 = ni%R + ni%V(:, 3)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(1), -1d0)
 
         ! do opposite direction
-        x0 = ni%R - ni%V(:, 3)*ps%path_nudge_factor
+        x0 = ni%R - ni%V(:, 3)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(2), -1d0)
 
         if (very_verbose()) then
@@ -492,16 +496,16 @@ contains
         end if
 
         ! Test if it connects to rings...
-        x0 = ni%R + ni%V(:, 2)*ps%path_nudge_factor
+        x0 = ni%R + ni%V(:, 2)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(3), 1d0)
 
-        x0 = ni%R - ni%V(:, 2)*ps%path_nudge_factor
+        x0 = ni%R - ni%V(:, 2)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(4), 1d0)
 
-        x0 = ni%R + ni%V(:, 1)*ps%path_nudge_factor
+        x0 = ni%R + ni%V(:, 1)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(5), 1d0)
 
-        x0 = ni%R - ni%V(:, 1)*ps%path_nudge_factor
+        x0 = ni%R - ni%V(:, 1)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(6), 1d0)
 
         do n = 3, 6
@@ -516,11 +520,11 @@ contains
       else if ((ni%curv .eq. 1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the direction of the negative
         ! eigenvalue
-        x0 = ni%R + ni%V(:, 1)*ps%path_nudge_factor
+        x0 = ni%R + ni%V(:, 1)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(1), 1d0)
 
         ! do opposite direction
-        x0 = ni%R - ni%V(:, 1)*ps%path_nudge_factor
+        x0 = ni%R - ni%V(:, 1)*ps_path%nudge
         call crits_trace_path(i, x0, endpoints(2), 1d0)
 
         if (very_verbose()) write (*, '(a,i3,a)') 'CP ', i, ' is a ring CP'
@@ -635,14 +639,14 @@ contains
     ipar(2) = -1
     rpar = constant
 
-    do i = 1, ps%path_max_segments
+    do i = 1, ps_path%max_segments
       ! times...
       t0 = 0.0
-      t1 = ps%path_segment_time
+      t1 = ps_path%time
 
       call dopri5(3, &
                   gradrho, t0, x, t1, &
-                  ps%path_dopri5_rtol, ps%path_dopri5_atol, itol, &
+                  ps_path%dopri5_rtol, ps_path%dopri5_atol, itol, &
                   gradrho_out, iout, &
                   work, lwork, iwork, liwork, rpar, ipar, idid)
 
