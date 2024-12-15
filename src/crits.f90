@@ -687,7 +687,6 @@ contains
   contains
 
     subroutine gradrho(n, x, y, f, rpar, ipar)
-      use density
       implicit none
       integer, intent(in) :: n
       double precision, intent(in) :: x, y(n)
@@ -703,7 +702,6 @@ contains
     end subroutine gradrho
 
     subroutine gradrho_out(NR, xold, x, y, n, con, icomp, nd, rpar, ipar, irtrn)
-      use density
       implicit none
       integer, intent(in) :: n, nd, nr
       integer, intent(out) :: irtrn

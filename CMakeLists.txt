@@ -33,23 +33,29 @@ add_subdirectory(libcint)
 # -------------------------------------------------------------------------------
 set(prog)
 set(srcs)
-set(huck-dir "${CMAKE_CURRENT_SOURCE_DIR}")
-set(huck-mod "${CMAKE_CURRENT_BINARY_DIR}/huck-mod")
+set(huckster-dir "${CMAKE_CURRENT_SOURCE_DIR}")
+set(huckster-mod "${CMAKE_CURRENT_BINARY_DIR}/modules")
 add_subdirectory("src")
 include_directories("include")
 
 # add external code
 add_subdirectory("src/external")
 
-add_library(huck-object OBJECT ${srcs})
-set_target_properties(huck-object PROPERTIES
-  Fortran_MODULE_DIRECTORY ${huck-mod}
+add_library(huckster-object OBJECT ${srcs})
+set_target_properties(huckster-object PROPERTIES
+  Fortran_MODULE_DIRECTORY ${huckster-mod}
   POSITION_INDEPENDENT_CODE ON
   OUTPUT_NAME "${PROJECT_NAME}"
 )
+target_link_libraries(huckster-object
+  PUBLIC
+  ${BLAS_LIBRARIES}
+  ${LAPACK_LIBRARIES}
+  cint f77-libs mkl-libs
+)
 
 # Static against which all the code is linked
-add_library(lib-huckster-static STATIC $<TARGET_OBJECTS:huck-object> )
+add_library(lib-huckster-static STATIC $<TARGET_OBJECTS:huckster-object> )
 target_link_libraries(lib-huckster-static
   PUBLIC
   ${BLAS_LIBRARIES}
@@ -59,14 +65,14 @@ target_link_libraries(lib-huckster-static
   mkl-libs
 )
 set_target_properties(lib-huckster-static PROPERTIES
-  Fortran_MODULE_DIRECTORY ${huck-mod}
+  Fortran_MODULE_DIRECTORY ${huckster-mod}
   ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
   POSITION_INDEPENDENT_CODE ON
   OUTPUT_NAME "${PROJECT_NAME}"
 )
 target_include_directories(lib-huckster-static
   PUBLIC
-  $<BUILD_INTERFACE:${huck-dir}/include>
+  $<BUILD_INTERFACE:${huckster-dir}/include>
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
@@ -79,11 +85,11 @@ target_link_libraries(huckster
   lib-huckster-static
 )
 set_target_properties(huckster PROPERTIES
-  Fortran_MODULE_DIRECTORY ${huck-mod}
+  Fortran_MODULE_DIRECTORY ${huckster-mod}
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
   OUTPUT_NAME "${PROJECT_NAME}"
 )
-target_include_directories(huckster PRIVATE "${huck-dir}/include")
+target_include_directories(huckster PRIVATE "${huckster-dir}/include")
 
 #
 # build tests
@@ -97,9 +103,9 @@ target_link_libraries(tester
   lib-huckster-static
 )
 set_target_properties(tester PROPERTIES
-  Fortran_MODULE_DIRECTORY ${huck-mod}
+  Fortran_MODULE_DIRECTORY ${huckster-mod}
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
   OUTPUT_NAME tester
 )
-target_include_directories(tester PRIVATE "${huck-dir}/include")
-add_test(NAME e2e_benzene COMMAND tester e2e_benzene)
+target_include_directories(tester PRIVATE "${huckster-dir}/include")
+add_test(NAME e2e_h2o COMMAND tester e2e_h2o)
