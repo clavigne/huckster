@@ -5,6 +5,7 @@ program huckster
   use ed
   use crits
   use log
+  use params
   implicit none
 
   ! homo lumo
@@ -14,15 +15,13 @@ program huckster
   integer :: LUMO
 
   ! Command line arguments
-  character(len=150)           :: arg
-  integer ::  charge
-  character(len=150)::input_file, output_file
-  character(len=:), allocatable :: output_name
-  integer :: info
+  character(len=4096)           :: arg
 
-  integer, parameter :: calc_huckel = 1, calc_promolecule = 2, calc_skip = 3
-  integer :: calc_type
-  logical :: do_crit, do_graph
+  ! Parameter sets
+  type(Parameters) :: ps
+  character(len=4096) :: path
+  character(len=4096) :: output_file
+  integer :: info
 
   ! Integrals
   type(ElectronicSystem) :: electrons
@@ -49,11 +48,7 @@ program huckster
   integer, allocatable :: adjacency(:, :)
 
   ! Load command line arguments
-  charge = 0
   i = 1
-  calc_type = calc_huckel
-  do_crit = .false.
-  do_graph = .false.
   do while (i .le. command_argument_count())
     call get_command_argument(i, arg)
     select case (arg)
@@ -76,24 +71,24 @@ program huckster
       call set_verbosity(2)
 
     case ('-a', '--aim')
-      do_crit = .true.
+      ps%find_critical_points = .true.
 
     case ('-g', '--graph')
-      do_crit = .true.        ! we need CPs for the graph
-      do_graph = .true.
+      ps%find_critical_points = .true.        ! we need CPs for the graph
+      ps%connect_graph = .true.
 
     case ('-t', '--type')
       call get_command_argument(i + 1, arg)
 
       select case (arg)
       case ('pro', 'promolecule', 'sad')
-        calc_type = calc_promolecule
+        ps%calc_type = calc_promolecule
 
       case ('huckel', 'eht')
-        calc_type = calc_huckel
+        ps%calc_type = calc_huckel
 
       case ('skip')
-        calc_type = calc_skip
+        ps%calc_type = calc_skip
 
       case default
         call log_err('huckster', trim(arg)//' is not a valid calculation type')
@@ -103,7 +98,7 @@ program huckster
 
     case ('-c', '--charge')
       call get_command_argument(i + 1, arg)
-      read (arg, *, iostat=info) charge
+      read (arg, *, iostat=info) ps%charge
       if (info .ne. 0) then
         call log_err('huckster', trim(arg)//' is an invalid charge.')
         error stop - 1
@@ -125,25 +120,26 @@ program huckster
     error stop - 1
   else
     i = i + 1
-    call get_command_argument(i, input_file)
+    call get_command_argument(i, path)
+    ps%input_path = trim(path)
 
     if (i < command_argument_count()) then
       call get_command_argument(i + 1, output_file)
     else
-      output_file = input_file
+      output_file = ps%input_path
     end if
   end if
 
   ! remove extension
   associate (idot => index(output_file, '.', back=.true.))
     if (idot > 0) then
-      output_name = output_file(1:idot - 1)
+      ps%output = output_file(1:idot - 1)
     else
-      output_name = output_file(1:len_trim(output_file))
+      ps%output = output_file(1:len_trim(output_file))
     end if
   end associate
 
-  if (calc_type .ne. calc_skip) then
+  if (ps%calc_type .ne. calc_skip) then
     ! ---------------------------------------------------------------------------------
     ! Initialize integral module
     call integrals_initialize
@@ -151,14 +147,14 @@ program huckster
     ! ---------------------------------------------------------------------------------
     ! Read input geometry
     call log_program_step('Reading geometry file')
-    if (logging()) write (*, *) '     file: ', input_file
+    if (logging()) write (*, *) '     file: ', ps%input_path
 
-    open (unit=2, file=input_file, action='READ', iostat=info)
+    open (unit=2, file=ps%input_path, action='READ', iostat=info)
     if (info .ne. 0) then
-      call log_err('huckster', 'could not open input geometry file: '//input_file)
+      call log_err('huckster', 'could not open input geometry file: '//ps%input_path)
       error stop - 1
     end if
-    call integrals_init_from_file(2, electrons, charge)
+    call integrals_init_from_file(2, electrons, ps%charge)
     close (unit=2)
     call log_program_step_end
 
@@ -173,7 +169,7 @@ program huckster
     naos = electrons%naos
     call log_program_step_end
 
-    if (calc_type .eq. calc_huckel) then
+    if (ps%calc_type .eq. calc_huckel) then
       ! ---------------------------------------------------------------------------------
       ! Setup the Hamiltonian
       call log_program_step('Building Extended Huckel Hamiltonian')
@@ -190,7 +186,7 @@ program huckster
         H(i, i) = electrons%E_AO(i)
         do j = i + 1, naos
           ! multiply off diag by Ei + Ej / 2
-          H(i, j) = S(i, j)*(electrons%E_AO(i) + electrons%E_AO(j))*0.5*K_PARAMETER
+          H(i, j) = S(i, j)*(electrons%E_AO(i) + electrons%E_AO(j))*0.5*ps%huckel_model%K
         end do
       end do
       call log_program_step_end
@@ -251,9 +247,9 @@ program huckster
         write (*, *) ''
       end if
 
-    elseif (calc_type .eq. calc_promolecule) then
+    elseif (ps%calc_type .eq. calc_promolecule) then
       call log_program_step('Generating promolecule electron density')
-      if (charge .ne. 0) then
+      if (ps%charge .ne. 0) then
         call log_err('huckster', 'promolecule density is not compatible with charged species.')
         error stop 1
       end if
@@ -265,7 +261,7 @@ program huckster
     end if
 
     call log_program_step('Saving wavefunction')
-    open (iwfn, file=output_name//'.wfn', action='write', iostat=info)
+    open (iwfn, file=ps%output//'.wfn', action='write', iostat=info)
 
     if (info .ne. 0) then
       call log_err('huckster', 'Could not open output wfn file')
@@ -280,14 +276,14 @@ program huckster
     deallocate (occ)
     deallocate (MO)
 
-    call log_program_substep('writing to file: '//output_name//'.wfn')
+    call log_program_substep('writing to file: '//ps%output//'.wfn')
     call integrals_write_to_wfn(iwfn, umos)
     close (iwfn)
 
     call log_program_step_end
   else
     call log_program_step('Reading wavefunction from file')
-    open (iwfn, file=output_name//'.wfn', action='read', iostat=info)
+    open (iwfn, file=ps%output//'.wfn', action='read', iostat=info)
 
     if (info .ne. 0) then
       call log_err('huckster', 'Could not open wfn file')
@@ -300,10 +296,10 @@ program huckster
     call log_program_step_end
   end if
 
-  if (do_crit) then
+  if (ps%find_critical_points) then
     call log_program_step('Constructing electron density calculator')
     call ed_initialize(umos)
-    call crits_initialize(umos)
+    call crits_initialize(umos, ps%crit_engine)
 
     call log_program_step('Electron density critical points')
 
@@ -323,7 +319,7 @@ program huckster
     call log_program_substep("Saving found critical points")
     if (logging()) write (*, *) '         writing CPs to csv file'
 
-    open (unit=iout, file=output_name//'.csv')
+    open (unit=iout, file=ps%output//'.csv')
     write (iout, *) 'index,atom,rank,curv,x,y,z,rho,ellip_x,ellip_y,ellip_z'
     do i = 1, ncp
       write (iout, '(i4,a)', advance='no') i, ','
@@ -348,14 +344,14 @@ program huckster
     call log_program_step_end
   end if
 
-  if (do_graph) then
+  if (ps%connect_graph) then
     call log_program_step('Connecting critical points into graph')
     neval = 0
     call crits_perceive_graph(adjacency)
     call log_program_step_end
     if (logging()) write (*, *) '         writing adjacency matrix to .mat file'
 
-    open (unit=iout, file=output_name//'.mat')
+    open (unit=iout, file=ps%output//'.mat')
     do i = 1, ncp
       do j = 1, ncp
         write (iout, '(i2)', advance='no') adjacency(j, i)

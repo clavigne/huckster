@@ -1,7 +1,6 @@
 module constants
   double precision, parameter :: conv_ev = 27.2113860217
   double precision, parameter :: conv_bohr = 0.52917721090380
-  double precision, parameter :: K_PARAMETER = 1.75
 
   ! Atom name
   character(len=2), parameter::atomname(110) = (/'H ', 'He', 'Li', 'Be', 'B ', 'C ', &

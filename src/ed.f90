@@ -4,8 +4,6 @@ module ed
   use mkl, only: ddot, vdAdd, vdPackV, vdExp, vdMul, vdAdd, dsymm
 
   private
-  ! we will only include basis for which exp(-alpha R^2) > this cutoff
-  double precision, parameter :: INTEGRAL_CUTOFF = 1d-6
 
   type(UnrolledMOs) :: orbitals
 

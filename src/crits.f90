@@ -2,7 +2,10 @@ module crits
   use log
   use ed
   use mkl, only: dsyev, dsysv
+  use params, only: CritEngine
   private
+
+  type(CritEngine) :: ps
 
   double precision, allocatable :: atoms(:, :)
   double precision, allocatable :: radii(:)
@@ -37,31 +40,6 @@ module crits
   type(CNode), pointer :: cps_next => cps
   integer :: ncrits
 
-  ! Parameters for NR search
-  ! from Rodriguez, J.
-  !      Journal of Computational Chemistry 34, 681686 (2013)
-  integer :: MAX_NEVAL = 150
-  double precision :: NR_MIXING = 0.3
-  double precision :: TOL_RANK = 1d-5
-  double precision :: TOL_ROOT = 1d-5
-  double precision :: TOL_DENSITY_ABANDON = 1d-3
-  double precision :: TOL_GRAD_ABANDON = 1d-3
-  double precision :: RTRUST = 0.27 ! trust sphere radius in bohrs
-
-  ! Driver parameter
-  double precision :: MAX_BOND_DISTANCE = 6.0
-  double precision :: MAX_RING_DISTANCE = 10.0 !unused for now
-  double precision :: MAX_CAGE_DISTANCE = 14.0 !unused for now
-  double precision :: MIN_ATOM_DENSITY = 0.4 !see atom_density
-  double precision :: GRID_SPACING = 0.5 ! from the same article
-
-  ! Parameters for bond searches
-  integer ::          PATH_MAX_SEGMENTS = 10
-  double precision :: PATH_SEGMENT_TIME = 100.0
-  double precision :: DOPRI5_RTOL = 1d-6
-  double precision :: DOPRI5_ATOL = 1d-4
-  double precision :: NUDGE_FACTOR = 1d-3
-
   ! Statistics
   integer :: crits_stat_searches
   integer :: crits_stat_maxiter
@@ -82,14 +60,17 @@ module crits
   public :: CritPoint
 
 contains
-  subroutine crits_initialize(MOs)
+  subroutine crits_initialize(MOs, params)
     use constants
     use integrals
     implicit none
     type(UnrolledMOs), intent(in) :: MOs
+    type(CritEngine), intent(in) :: params
     ! workspace
     double precision, allocatable :: my_radii(:)
     integer :: i
+
+    ps = params
 
     ! clear any previous data
     call crits_close
@@ -151,7 +132,7 @@ contains
     found = 0
     do ia = 1, natm
       do ib = ia + 1, natm
-        if (sqrt(sum((atoms(ia, :) - atoms(ib, :))**2)) < MAX_BOND_DISTANCE) then
+        if (sqrt(sum((atoms(ia, :) - atoms(ib, :))**2)) < ps%search_bond_distance) then
           x0 = (atoms(ia, :) + atoms(ib, :))/2.0
           call crits_search(x0, info)
           if (info .eq. 1) then
@@ -177,9 +158,9 @@ contains
 
     ! Compute grid boundaries
     do i = 1, 3
-      ul(i) = maxval(atoms(:, i)) + GRID_SPACING*1.5
-      ll(i) = minval(atoms(:, i)) - GRID_SPACING*1.5
-      n(i) = int(ceiling((ul(i) - ll(i))/GRID_SPACING))
+      ul(i) = maxval(atoms(:, i)) + ps%search_grid_spacing*1.5
+      ll(i) = minval(atoms(:, i)) - ps%search_grid_spacing*1.5
+      n(i) = int(ceiling((ul(i) - ll(i))/ps%search_grid_spacing))
       d(i) = (ul(i) - ll(i))/n(i)
     end do
 
@@ -256,12 +237,12 @@ contains
     dx_last = 0d0
 
     ! newton raphson
-    do i = 1, MAX_NEVAL
+    do i = 1, ps%max_neval
       ! Checks are done in order of copmutational expense :
 
       ! if we are far enough from every atoms we just don't bother computing anything
       ! this is very cheap
-      if (atom_density(x) < MIN_ATOM_DENSITY) then
+      if (atom_density(x) < ps%atom_density_abandon) then
         if (i .eq. 1) then
           crits_stat_noatoms(1) = crits_stat_noatoms(1) + 1
         else
@@ -282,7 +263,7 @@ contains
       end if
 
       call ed_eval(x, rho0, rho1, rho2)
-      dx = dx_last*NR_MIXING + rho1*(1d0 - NR_MIXING)
+      dx = dx_last*ps%nr_mixing + rho1*(1d0 - ps%nr_mixing)
       dx_last = rho1
 
       if (is_below_threshold(rho0, rho1)) then
@@ -305,7 +286,7 @@ contains
         return
       end if
 
-      if (sqrt(dot_product(rho1, rho1)) < TOL_ROOT) then
+      if (sqrt(dot_product(rho1, rho1)) < ps%tol_root) then
         ! found a critical point.
         call crits_push_cp(x, i)
         info = 1
@@ -359,7 +340,7 @@ contains
     n => cps
     do i = 1, ncrits
       d = sum((x - n%R)**2)
-      if (sqrt(d) < RTRUST) then
+      if (sqrt(d) < ps%rtrust) then
         is_colliding = i
         return
       end if
@@ -394,7 +375,7 @@ contains
     rank = 0
     curv = 0
     do j = 1, 3
-      if (abs(w(j)) > TOL_RANK) then
+      if (abs(w(j)) > ps%tol_rank) then
         rank = rank + 1
         curv = curv + int(sign(1d0, w(j)))
       end if
@@ -484,11 +465,11 @@ contains
       ! if i is a bond
       if ((ni%curv .eq. -1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the correct direction
-        x0 = ni%R + ni%V(:, 3)*NUDGE_FACTOR
+        x0 = ni%R + ni%V(:, 3)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(1), -1d0)
 
         ! do opposite direction
-        x0 = ni%R - ni%V(:, 3)*NUDGE_FACTOR
+        x0 = ni%R - ni%V(:, 3)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(2), -1d0)
 
         if (very_verbose()) then
@@ -511,16 +492,16 @@ contains
         end if
 
         ! Test if it connects to rings...
-        x0 = ni%R + ni%V(:, 2)*NUDGE_FACTOR
+        x0 = ni%R + ni%V(:, 2)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(3), 1d0)
 
-        x0 = ni%R - ni%V(:, 2)*NUDGE_FACTOR
+        x0 = ni%R - ni%V(:, 2)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(4), 1d0)
 
-        x0 = ni%R + ni%V(:, 1)*NUDGE_FACTOR
+        x0 = ni%R + ni%V(:, 1)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(5), 1d0)
 
-        x0 = ni%R - ni%V(:, 1)*NUDGE_FACTOR
+        x0 = ni%R - ni%V(:, 1)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(6), 1d0)
 
         do n = 3, 6
@@ -535,11 +516,11 @@ contains
       else if ((ni%curv .eq. 1) .and. (ni%rank .eq. 3)) then
         ! start R, but with a small nudge in the direction of the negative
         ! eigenvalue
-        x0 = ni%R + ni%V(:, 1)*NUDGE_FACTOR
+        x0 = ni%R + ni%V(:, 1)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(1), 1d0)
 
         ! do opposite direction
-        x0 = ni%R - ni%V(:, 1)*NUDGE_FACTOR
+        x0 = ni%R - ni%V(:, 1)*ps%path_nudge_factor
         call crits_trace_path(i, x0, endpoints(2), 1d0)
 
         if (very_verbose()) write (*, '(a,i3,a)') 'CP ', i, ' is a ring CP'
@@ -654,14 +635,14 @@ contains
     ipar(2) = -1
     rpar = constant
 
-    do i = 1, PATH_MAX_SEGMENTS
+    do i = 1, ps%path_max_segments
       ! times...
       t0 = 0.0
-      t1 = PATH_SEGMENT_TIME
+      t1 = ps%path_segment_time
 
       call dopri5(3, &
                   gradrho, t0, x, t1, &
-                  DOPRI5_RTOL, DOPRI5_ATOL, itol, &
+                  ps%path_dopri5_rtol, ps%path_dopri5_atol, itol, &
                   gradrho_out, iout, &
                   work, lwork, iwork, liwork, rpar, ipar, idid)
 
