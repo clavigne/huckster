@@ -31,13 +31,12 @@ set(ENABLE_STATIC 1 CACHE BOOL "build libcint statically")
 add_subdirectory(libcint)
 
 # -------------------------------------------------------------------------------
-# this part is from xtb, it builds a static binary
 set(prog)
 set(srcs)
 set(huck-dir "${CMAKE_CURRENT_SOURCE_DIR}")
 set(huck-mod "${CMAKE_CURRENT_BINARY_DIR}/huck-mod")
 add_subdirectory("src")
-include_directories(include)
+include_directories("include")
 
 # add external code
 add_subdirectory("src/external")
@@ -85,3 +84,22 @@ set_target_properties(huckster PROPERTIES
   OUTPUT_NAME "${PROJECT_NAME}"
 )
 target_include_directories(huckster PRIVATE "${huck-dir}/include")
+
+#
+# build tests
+#
+set(tests)
+enable_testing()
+add_subdirectory("tests")
+add_executable(tester ${tester})
+target_link_libraries(tester
+  PRIVATE
+  lib-huckster-static
+)
+set_target_properties(tester PROPERTIES
+  Fortran_MODULE_DIRECTORY ${huck-mod}
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+  OUTPUT_NAME tester
+)
+target_include_directories(tester PRIVATE "${huck-dir}/include")
+add_test(NAME e2e_benzene COMMAND tester e2e_benzene)
