@@ -17,7 +17,7 @@ print("Welcome to the atomic SCF dumper --- powered by pyscf.")
 bas = []
 env = []
 
-aos = np.zeros((110,5), dtype=np.int)
+aos = np.zeros((110,5), dtype=int)
 at_off = 1
 
 params = ""
@@ -92,7 +92,7 @@ print('Size of env array:', env.shape)
 def make_array_2d(name, data, fstr):
     out = f'{name} = reshape((/ '
     k = 0
-    n = np.product(data.shape)
+    n = np.prod(data.shape)
     while True:
         for i in range(10):
             out += fstr % (data.T.flat[k]) 
@@ -111,7 +111,7 @@ def make_array_2d(name, data, fstr):
 def make_array_1d(name, data, fstr):
     out = f'{name} = (/ '
     k = 0
-    n = np.product(data.shape)
+    n = np.prod(data.shape)
     while True:
         for i in range(10):
             out += fstr % (data.flat[k]) 
@@ -154,8 +154,8 @@ with open('data-content.f90', 'wb') as f:
     f.write(make_array_1d('ENV(1:ENV_COORD_PTR)', env, '%f').encode('ascii'))
 
 # Copy to destination
-shutil.copy('data-header.f90', os.path.join('..', 'include', 'data-header.f90'))
-shutil.copy('data-content.f90', os.path.join('..', 'include', 'data-content.f90'))
+shutil.copy('data-header.f90', os.path.join('include', 'data-header.f90'))
+shutil.copy('data-content.f90', os.path.join('include', 'data-content.f90'))
 
 # Finally save the basis for tests.
 import pickle

@@ -1,3 +1,5 @@
 build/
 .vscode/launch.json
 include/current-commit.f90
+*.pkl
+scripts/__pycache__
