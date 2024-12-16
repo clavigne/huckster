@@ -1,2 +1,3 @@
 build/
 .vscode/launch.json
+include/current-commit.f90

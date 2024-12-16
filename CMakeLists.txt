@@ -3,6 +3,14 @@ cmake_minimum_required(VERSION 3.20)
 # Conda
 set(CMAKE_INSTALL_PREFIX "$ENV{CONDA_PREFIX}")
 
+# Add current hash so that the program can print it out in outputs, for reproducibility
+execute_process(COMMAND git log -1 --format=%h
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+  OUTPUT_VARIABLE GIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+file(WRITE "include/current-commit.f90" "character(len=*), parameter :: git_hash = \"${GIT_HASH}\"")
+
 project(huckster
   VERSION 0.3
   LANGUAGES C Fortran

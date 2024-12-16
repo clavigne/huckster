@@ -1,6 +1,6 @@
 module log
-  ! Log calls
-
+  implicit none
+  include "current-commit.f90"
   integer, private :: verbosity = 0
   integer, private :: step_counter = 0
 
@@ -43,7 +43,8 @@ contains
     write (*, *) '|           & promolecule density estimation           |'
     write (*, *) '|        -------------- by ------------------          |'
     write (*, *) '|               -- Cyrille Lavigne --                  |'
-    write (*, *) '|                U. of Toronto, 2020                   |'
+    write (*, *) '|                                                      |'
+    write (*, "(' |                                    (commit: ', a, ') |')") git_hash
     write (*, *) '+======================================================+'
   end subroutine log_banner
 
