@@ -2,12 +2,18 @@ module crits
   use log
   use ed
   use mkl, only: dsyev, dsysv
-  use params, only: CritNR, CritPath, CritSearch, Parameters
+  use params, only: CritNR, CritPath, CritSearch, Parameters, WriteOutput
   private
+
+  integer, parameter :: fake_atom_bcp = -1
+  integer, parameter :: fake_atom_rcp = -2
+  integer, parameter :: fake_atom_ccp = -3
+  integer, parameter :: fake_atom_nna = -4
 
   type(CritPath) :: ps_path
   type(CritNR) :: ps_nr
   type(CritSearch) :: ps_search
+  type(WriteOutput) :: ps_out
 
   double precision, allocatable :: atoms(:, :)
   double precision, allocatable :: radii(:)
@@ -58,6 +64,7 @@ module crits
   public :: crits_close, crits_print
   public :: crits_do_atoms, crits_do_bonds, crits_do_grid
   public :: crits_perceive_graph, crits_get_CPs
+  public :: fake_atom_bcp, fake_atom_ccp, fake_atom_nna, fake_atom_rcp
 
   public :: CritPoint
 
@@ -75,6 +82,7 @@ contains
     ps_nr = params%nr
     ps_path = params%path
     ps_search = params%search
+    ps_out = params%output
 
     ! clear any previous data
     call crits_close
@@ -412,7 +420,7 @@ contains
 
     ! workspace
     type(CNode), pointer :: ni
-    double precision :: dist(natm)
+    double precision :: dist(natm), mindist
     integer :: k, i
 
     np = ncrits
@@ -426,12 +434,24 @@ contains
       C(k)%curvature = ni%curv
 
       if (is_atom(ni)) then
+        ! find the closest atom
         do i = 1, natm
           dist(i) = sum((ni%R - atoms(i, :))**2)
-          C(k)%atom_id = minloc(dist, 1)
         end do
+        mindist = minval(dist)
+        if (mindist .le. ps_out%min_nna_dist) then
+          C(k)%atom_id = minloc(dist, 1)
+        else
+          C(k)%atom_id = fake_atom_nna
+        end if
+      elseif (is_ring(ni)) then
+        C(k)%atom_id = fake_atom_rcp
+      elseif (is_bond(ni)) then
+        C(k)%atom_id = fake_atom_bcp
+      elseif (is_cage(ni)) then 
+        C(k)%atom_id = fake_atom_ccp
       else
-        C(k)%atom_id = -1
+        C(k)%atom_id = 0
       end if
 
       C(k)%electron_density = ni%rho
@@ -509,7 +529,7 @@ contains
         call crits_trace_path(i, x0, endpoints(6), 1d0)
 
         do n = 3, 6
-          if (endpoints(n) > 0 .and. is_ring(endpoints(n))) then
+          if (endpoints(n) > 0 .and. is_ring(get(endpoints(n)))) then
             if (very_verbose()) write (*, '(a, i2)') '           it also connects to ring CP#', endpoints(n)
             A(i, endpoints(n)) = 1
             A(endpoints(n), i) = 1
@@ -529,7 +549,7 @@ contains
 
         if (very_verbose()) write (*, '(a,i3,a)') 'CP ', i, ' is a ring CP'
         do n = 1, 2
-          if (endpoints(n) > 0 .and. is_cage(endpoints(n))) then
+          if (endpoints(n) > 0 .and. is_cage(get(endpoints(n)))) then
             if (very_verbose()) write (*, '(a, i2)') '           that connects to cage CP#', endpoints(n)
             A(i, endpoints(n)) = 1
             A(endpoints(n), i) = 1
@@ -554,8 +574,20 @@ contains
     end if
   end subroutine crits_perceive_graph
 
-  logical function is_atom(nj)
+  type(CNode) function get(i)
+    integer, intent(in) :: i
     type(CNode), pointer :: nj
+
+    nj => cps
+    do k = 2, i
+      nj => nj%next
+    end do
+
+    get = nj
+  end function get  
+
+  logical function is_atom(nj)
+    type(CNode), intent(in) :: nj
 
     if ((nj%curv .eq. -3) .and. (nj%rank .eq. 3)) then
       is_atom = .true.
@@ -564,16 +596,18 @@ contains
     end if
   end function is_atom
 
-  logical function is_ring(i)
-    ! true if CP i (including atoms) is a ring
-    integer, intent(in) :: i
-    type(CNode), pointer :: nj
-    integer :: k
+  logical function is_bond(nj)
+    type(CNode), intent(in) :: nj
 
-    nj => cps
-    do k = 2, i
-      nj => nj%next
-    end do
+    if ((nj%curv .eq. -1) .and. (nj%rank .eq. 3)) then
+      is_bond = .true.
+    else
+      is_bond = .false.
+    end if
+  end function is_bond
+
+  logical function is_ring(nj)
+    type(CNode), intent(in) :: nj
 
     if ((nj%curv .eq. 1) .and. (nj%rank .eq. 3)) then
       is_ring = .true.
@@ -582,17 +616,9 @@ contains
     end if
   end function is_ring
 
-  logical function is_cage(i)
-    ! true if CP i (including atoms) is a cage
-    integer, intent(in) :: i
-    type(CNode), pointer :: nj
-    integer :: k
-
-    nj => cps
-    do k = 2, i
-      nj => nj%next
-    end do
-
+  logical function is_cage(nj)
+    type(CNode), intent(in) :: nj    
+    
     if ((nj%curv .eq. 3) .and. (nj%rank .eq. 3)) then
       is_cage = .true.
     else
@@ -746,17 +772,14 @@ contains
         write (*, *) ''
       end if
 
-      if (n%rank .eq. 3) then
-        select case (n%curv)
-        case (-3)
-          nnp = nnp + 1
-        case (-1)
-          nbp = nbp + 1
-        case (1)
-          nrp = nrp + 1
-        case (3)
-          ncp = ncp + 1
-        end select
+      if (is_atom(n)) then
+        nnp = nnp + 1
+      else if (is_bond(n)) then
+        nbp = nbp + 1
+      else if (is_ring(n)) then
+        nrp = nrp + 1
+      else if (is_cage(n)) then
+        ncp = ncp + 1
       end if
 
       n => n%next

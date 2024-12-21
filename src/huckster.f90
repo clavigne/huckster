@@ -248,6 +248,31 @@ program huckster
     end do
     close (unit=iout)
 
+    open (unit=iout, file=output//'_aim.xyz')
+    write(iout, '(i4)') ncp
+    write(iout, *) ''
+    do i = 1, ncp
+      if (CPs(i)%atom_id > 0) then
+        write (iout, '(a2)', advance='no') trim(umos%atoms(CPs(i)%atom_id))
+      else
+        select case (CPs(i)%atom_id)
+        case (fake_atom_bcp)
+          write (iout, '(a2))', advance='no') trim(ps%output%bcp_as_atom)
+        case (fake_atom_rcp)
+          write (iout, '(a2)', advance='no') trim(ps%output%rcp_as_atom)
+        case (fake_atom_ccp)
+          write (iout, '(a2)', advance='no') trim(ps%output%ccp_as_atom)
+        case (fake_atom_nna)
+          write (iout, '(a2)', advance='no') trim(ps%output%nna_as_atom)
+        case default
+          write (iout, '(a2)', advance='no') "X"
+        end select
+      end if
+
+      write(iout, '(F20.6, F20.6, F20.6)') CPs(i)%position * conv_bohr
+    end do    
+    close(unit=iout)
+
     call log_program_step_end
   end if
 

@@ -36,6 +36,14 @@ module params
     double precision :: grid = 0.5 ! search for a cp on a grid with this spacing
   end type CritSearch
 
+  type WriteOutput
+    ! Options that control output formatting
+
+    double precision :: min_nna_dist = 0.2 ! NNAs are atoms that are this far away from any real center
+    ! for xyz export, fake atom types that will be used for each type of CP
+    character(len=2) :: bcp_as_atom = 'He', rcp_as_atom = 'Ne', ccp_as_atom = 'Ar', nna_as_atom = 'Kr'  
+  end type
+
   type CritPath
     integer ::          max_segments = 10 ! maximum number of segments in a path search
     double precision :: time = 100.0 ! effective "time" for path propagation
@@ -58,31 +66,14 @@ module params
     type(CritNR) :: nr
     type(CritSearch) :: search
     type(CritPath) :: path
+    type(WriteOutput) :: output
   end type
 
 contains
-  subroutine params_export(ifile, p)
-    integer, intent(in) :: ifile
-    type(Parameters), intent(in) :: p
-
-    namelist /PARAMS/ p
-
-    write (ifile, PARAMS)
-  end subroutine
-
   subroutine params_print_extended_options()
     type(Parameters) :: defaults
     namelist /PARAMS/ defaults
     call params_io(6, defaults, io_write)
-  end subroutine
-
-  subroutine params_import(ifile, p)
-    integer, intent(in) :: ifile
-    type(Parameters), intent(inout) :: p
-
-    namelist /PARAMS/ p
-
-    read (ifile, PARAMS)
   end subroutine
 
   subroutine params_io(unit, p, io, iunit)
@@ -112,7 +103,13 @@ contains
     !search
     logical :: search_atoms, search_bonds, search_grid
     double precision :: max_bond, grid
+
     namelist /critsearch/ search_atoms, search_bonds, search_grid, max_bond, grid
+
+    ! output
+    double precision :: min_nna_dist
+    character(len=2) :: bcp_as_atom = 'He', rcp_as_atom = 'Ne', ccp_as_atom = 'Ar', nna_as_atom = 'Kr'
+    namelist /output/ min_nna_dist, bcp_as_atom, rcp_as_atom, ccp_as_atom, nna_as_atom
 
     !pathing
     integer :: max_segments
@@ -145,6 +142,12 @@ contains
     search_grid = p%search%search_grid
     max_bond = p%search%max_bond
     grid = p%search%grid
+
+    min_nna_dist = p%output%min_nna_dist
+    bcp_as_atom = p%output%bcp_as_atom
+    rcp_as_atom = p%output%rcp_as_atom
+    ccp_as_atom = p%output%ccp_as_atom
+    nna_as_atom = p%output%nna_as_atom
 
     max_segments = p%path%max_segments
     time = p%path%time
@@ -220,6 +223,12 @@ contains
       p%path%dopri5_rtol = dopri5_rtol
       p%path%dopri5_atol = dopri5_atol
       p%path%nudge = nudge
+
+      p%output%min_nna_dist = min_nna_dist
+      p%output%bcp_as_atom = bcp_as_atom
+      p%output%rcp_as_atom = rcp_as_atom
+      p%output%ccp_as_atom = ccp_as_atom
+      p%output%nna_as_atom = nna_as_atom      
     end if
 
     if (io .eq. io_write .or. io .eq. io_update) then
