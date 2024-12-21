@@ -11,6 +11,7 @@ list(APPEND srcs
 "${dir}/crits.f90"
 "${dir}/log.f90"
 "${dir}/ed.f90"
+"${dir}/models.f90"
 "${dir}/params.f90"
 )
 

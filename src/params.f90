@@ -121,7 +121,7 @@ contains
 
     if (present(iunit) .and. (io .ne. io_read)) then
       call log_err("params_io", "illegal use of iunit with writes")
-      error stop -1
+      error stop - 1
     end if
 
     calc_type = p%route%calc_type
@@ -153,44 +153,44 @@ contains
     nudge = p%path%nudge
 
     if (io .eq. io_read .or. io .eq. io_update) then
-      if (present(iunit))  then
+      if (present(iunit)) then
         read (iunit, nml=route, iostat=info)
-      else 
+      else
         read (unit, nml=route, iostat=info)
-        rewind(unit)
+        rewind (unit)
       end if
       call check_read("ROUTE")
 
-      if (present(iunit))  then
+      if (present(iunit)) then
         read (iunit, nml=model, iostat=info)
-      else 
+      else
         read (unit, nml=model, iostat=info)
-        rewind(unit)
-      end if      
+        rewind (unit)
+      end if
       call check_read("MODEL")
 
-      if (present(iunit))  then
+      if (present(iunit)) then
         read (iunit, nml=critnr, iostat=info)
-      else 
+      else
         read (unit, nml=critnr, iostat=info)
-        rewind(unit)
-      end if            
+        rewind (unit)
+      end if
       call check_read("CRITNR")
 
-      if (present(iunit))  then
+      if (present(iunit)) then
         read (iunit, nml=critsearch, iostat=info)
-      else 
+      else
         read (unit, nml=critsearch, iostat=info)
-        rewind(unit)
-      end if            
+        rewind (unit)
+      end if
       call check_read("CRITSEARCH")
 
-      if (present(iunit))  then
+      if (present(iunit)) then
         read (iunit, nml=critpath, iostat=info)
-      else 
+      else
         read (unit, nml=critpath, iostat=info)
-        rewind(unit)
-      end if            
+        rewind (unit)
+      end if
       call check_read("CRITPATH")
 
       p%route%calc_type = calc_type
@@ -262,12 +262,17 @@ contains
       if ((info .eq. 0) .or. (info .eq. -1)) then
         ! -1 == end of file = nml wasnt found, at least on gfortran
       else
-        call log_err('params_io', "Error while reading "// which)
+        call log_err('params_io', "Error while reading "//which)
         error stop - 1
       end if
 
     end subroutine
 
   end subroutine
+
+  type(Parameters) function params_default()
+    type(Parameters) :: d
+    params_default = d
+  end function
 
 end module

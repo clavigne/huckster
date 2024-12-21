@@ -116,4 +116,4 @@ set_target_properties(tester PROPERTIES
   OUTPUT_NAME tester
 )
 target_include_directories(tester PRIVATE "${huckster-dir}/include")
-add_test(NAME e2e_h2o COMMAND tester e2e_h2o)
+add_test(NAME huckel_h2o COMMAND tester huckel_h2o)

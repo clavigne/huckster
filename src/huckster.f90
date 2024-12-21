@@ -6,13 +6,8 @@ program huckster
   use crits
   use log
   use params
+  use models
   implicit none
-
-  ! homo lumo
-  character(len=4)::homolumo(3) = (/'    ', 'HOMO', 'LUMO'/)
-  integer :: hl_index
-  integer :: HOMO
-  integer :: LUMO
 
   ! Command line arguments
   character(len=4096)           :: arg
@@ -23,23 +18,10 @@ program huckster
   character(len=:), allocatable :: output_file
   character(len=:), allocatable :: input
   character(len=:), allocatable :: output
-  integer :: info
+  integer :: info, i, j
 
-  ! Integrals
-  type(ElectronicSystem) :: electrons
+  ! Result from model
   type(UnrolledMOs) :: umos
-
-  ! Work parameters
-  integer :: i, ii, j, naos, remaining_electrons
-
-  ! Hamiltonian / overlap
-  double precision, allocatable :: S_prim(:, :)
-  double precision, allocatable :: H(:, :)
-  double precision, allocatable :: S(:, :)
-  double precision, allocatable :: MO(:, :)
-  double precision, allocatable :: MO_AO(:, :)
-  double precision, allocatable :: E_MO(:)
-  double precision, allocatable :: occ(:)
 
   ! outputs
   integer, parameter :: iwfn = 10, icrit = 11, iout = 12
@@ -185,125 +167,7 @@ program huckster
   end associate
 
   if (ps%route%calc_type .ne. calc_skip) then
-    ! ---------------------------------------------------------------------------------
-    ! Initialize integral module
-    call integrals_initialize
-
-    ! ---------------------------------------------------------------------------------
-    ! Read input geometry
-    call log_program_step('Reading geometry file')
-    if (logging()) write (*, *) '     file: ', input
-
-    open (unit=2, file=input, action='READ', iostat=info)
-    if (info .ne. 0) then
-      call log_err('huckster', 'could not open input geometry file: '//input)
-      error stop - 1
-    end if
-    call integrals_init_from_file(2, electrons, ps%route%charge)
-    close (unit=2)
-    call log_program_step_end
-
-    ! ---------------------------------------------------------------------------------
-    ! Generate the basis
-    call log_program_step('Loading primitive basis')
-    call integrals_build_basis(electrons)
-    call log_program_step_end
-
-    call log_program_step('Loading AO coeffs and energies')
-    call integrals_build_atomic_orbitals(electrons)
-    naos = electrons%naos
-    call log_program_step_end
-
-    if (ps%route%calc_type .eq. calc_huckel) then
-      ! ---------------------------------------------------------------------------------
-      ! Setup the Hamiltonian
-      call log_program_step('Building Extended Huckel Hamiltonian')
-
-      call log_program_substep('generating overlaps in the gaussian basis')
-      call integrals_overlaps(electrons, S_prim)
-
-      call log_program_substep('projecting S_orb to opt. AOs')
-      call integrals_symm_bas2ao(electrons, S_prim, S)
-
-      call log_program_substep('generating Hamiltonian elements')
-      allocate (H(naos, naos))
-      do i = 1, naos
-        H(i, i) = electrons%E_AO(i)
-        do j = i + 1, naos
-          ! multiply off diag by Ei + Ej / 2
-          H(i, j) = S(i, j)*(electrons%E_AO(i) + electrons%E_AO(j))*0.5*ps%model%Huckel_K
-        end do
-      end do
-      call log_program_step_end
-
-      call log_program_step('Eigendecomposition of H')
-      if (logging()) write (*, '(a,i5,a,i5)') '      H has dimension', naos, ' x ', naos
-
-      call log_program_substep('diagonalizing')
-      call hamiltonians_diag_on_basis(H, S, E_MO, MO_AO)
-
-      call log_program_substep('projecting to the primitive basis')
-      call integrals_MO_AO_transform(electrons, MO_AO, MO)
-
-      call log_program_substep('projecting to the primitive basis')
-      call integrals_MO_AO_transform(electrons, MO_AO, MO)
-      call log_program_step_end
-
-      if (verbose()) then
-        write (*, *) '     +------------------------'
-        write (*, *) '     MO |  Energy  |  occ'
-      end if
-
-      ! todo move that somewhere else
-      ! setup occupation
-      allocate (occ(naos))
-      remaining_electrons = electrons%nelec
-
-      hl_index = 1
-      do ii = 1, naos
-        if (remaining_electrons > 0) then
-          occ(ii) = dble(min(2, remaining_electrons))
-          remaining_electrons = remaining_electrons - min(2, remaining_electrons)
-          if (remaining_electrons .eq. 0) then
-            hl_index = 2
-            HOMO = ii
-          end if
-        else
-          select case (hl_index)
-          case (3)
-            hl_index = 1
-          case (2)
-            hl_index = 3
-            LUMO = ii
-          case default
-          end select
-          occ(ii) = 0d0
-        end if
-
-        if (verbose()) then
-          write (*, '(a, i4,a,f9.4,a,f3.1, 2a)') '    ', ii, ' | ', E_MO(ii), &
-            '|  ', occ(ii), '  ', homolumo(hl_index)
-        end if
-      end do
-      if (logging()) then
-        write (*, *) '     +------------------------'
-        write (*, '(a,f9.4,a)') '      Δ HOMO-LUMO = ', E_MO(LUMO) - E_MO(HOMO), ' Hartrees'
-        write (*, '(a,f9.4,a)') '                    ', (E_MO(LUMO) - E_MO(HOMO))*conv_ev, ' eV'
-        write (*, *) ''
-      end if
-
-    elseif (ps%route%calc_type .eq. calc_promolecule) then
-      call log_program_step('Generating promolecule electron density')
-      if (ps%route%charge .ne. 0) then
-        call log_err('huckster', 'promolecule density is not compatible with charged species.')
-        error stop 1
-      end if
-      occ = electrons%pop_ao
-      MO = electrons%C_AO
-      allocate (E_MO(naos))
-      E_MO(:) = 0.0
-      call log_program_step_end
-    end if
+    call models_from_params(input, ps, umos)
 
     call log_program_step('Saving wavefunction')
     open (iwfn, file=output//'.wfn', action='write', iostat=info)
@@ -312,14 +176,6 @@ program huckster
       call log_err('huckster', 'Could not open output wfn file')
       error stop - 1
     end if
-
-    ! Put the MOs into the fully unrolled, uncontracted primitive form that goes
-    ! into AIM file and related routines.
-    call log_program_substep('unrolling MOs to primitive functions')
-    call integrals_unroll(electrons, MO, E_MO, occ, umos)
-    deallocate (E_MO)
-    deallocate (occ)
-    deallocate (MO)
 
     call log_program_substep('writing to file: '//output//'.wfn')
     call integrals_write_to_wfn(iwfn, umos)
